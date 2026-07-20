@@ -147,7 +147,7 @@ You can run the demo script directly. Passing credentials in environment variabl
 # To test against the live service:
 export SWIM_ID="your-email@example.com"
 export SWIM_PASSWORD="your-password"
-export SWIM_METAR_SERVICE_CODE="your-metar-service-code"
+export SWIM_METAR_SERVICE_CODE="webapi-metar-service-code"
 npm run demo
 ```
 
