@@ -1,11 +1,15 @@
 # SWIM-WebAPI-METAR
+> [!CAUTION]
+> You have an account authorised by SWIM to retrieve METAR data via the Web API.
+> 
+> For more details, visit https://top.swim.mlit.go.jp/swim
 
 A TypeScript client library for interacting with Japan's **SWIM (System Wide Information Management)** WebAPI METAR service, operated by the **Ministry of Land, Infrastructure, Transport and Tourism (MLIT)**.
 
 This module provides a typed interface to authenticate and fetch METAR (Meteorological Aerodrome Report) weather observation data in compliance with MLIT's requirements.
 
 ## Requirements
-**MLIT's Authorize**
+**MLIT's Authorised**
 
 ## Features
 
