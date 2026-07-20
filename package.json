@@ -1,0 +1,34 @@
+{
+  "name": "swim-webapi-metar",
+  "version": "1.0.0",
+  "description": "TypeScript client library for Japan MLIT SWIM WebAPI METAR service",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "node --import tsx --test src/**/*.test.ts",
+    "demo": "tsx examples/demo.ts"
+  },
+  "keywords": [
+    "swim",
+    "metar",
+    "mlit",
+    "aviation",
+    "weather",
+    "japan"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "tsx": "^4.7.1",
+    "typescript": "^5.3.3"
+  }
+}
