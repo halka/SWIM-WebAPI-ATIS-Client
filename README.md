@@ -4,6 +4,9 @@ A TypeScript client library for interacting with Japan's **SWIM (System Wide Inf
 
 This module provides a typed interface to authenticate and fetch METAR (Meteorological Aerodrome Report) weather observation data in compliance with MLIT's requirements.
 
+## Requirements
+**MLIT's Authorize**
+
 ## Features
 
 - **Authentication Flow:** Automatically manages POST authentication and session cookies (`MSMSI` and `MSMAI`).
@@ -125,3 +128,6 @@ npm run demo
 
 > [!WARNING]
 > Because browsers restrict manually setting the `Cookie` header on cross-origin requests for security reasons, this library is primarily designed for **Node.js (server-side)**, **Edge Functions**, or **proxy server** environments. If used directly in client-side browser environments, it may trigger CORS and header modification issues unless requests are routed through a reverse proxy.
+
+## Author
+halka
