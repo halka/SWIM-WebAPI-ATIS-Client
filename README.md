@@ -8,15 +8,36 @@ A TypeScript client library for interacting with Japan's **SWIM (System Wide Inf
 
 This module provides a typed interface to authenticate and fetch METAR (Meteorological Aerodrome Report) weather observation data in compliance with MLIT's requirements.
 
-## Requirements
-**MLIT's Authorised**
-
 ## Features
 
 - **Authentication Flow:** Automatically manages POST authentication and session cookies (`MSMSI` and `MSMAI`).
 - **Session Lifecycle:** Exposes session serialization methods to support cookie reuse across multiple client instances or runs.
 - **TypeScript Support:** Full types for credentials, query options, and client setup.
 - **Zero Runtime Dependencies:** Built using modern standard APIs (`fetch` and `Headers`).
+
+---
+
+## Requirements
+
+- An active SWIM portal account authorised by MLIT to use the target Web API service.
+- Approval for Web API use may be required by the relevant information service provider before the masked API details are disclosed.
+- A server-side JavaScript runtime with `fetch` support, such as Node.js 18 or later.
+
+## SWIM's WebAPI METAR Restrctions
+
+This package is only a client implementation. Access to SWIM data remains subject to MLIT/SWIM account approval, service approval, and the terms published in the SWIM portal.
+
+- SWIM is intended, for the time being, for aviation-related users such as operators, airport administrators, and government agencies; public/general use is not assumed by SWIM.
+- Web API services are request-based HTTP services and require the user to build the client-side system that calls the API.
+- Some Web API interface URLs are masked in the public SWIM portal documentation and are disclosed separately after the relevant information service provider approves use.
+- This library is designed for Node.js, Edge Functions, or a proxy server. Browser clients cannot reliably set the required `Cookie` header for cross-origin SWIM requests.
+- Do not use this package, or SWIM METAR data retrieved with it, beyond the scope permitted by your SWIM account and service approval.
+
+References:
+
+- [SWIM portal](https://top.swim.mlit.go.jp/swim)
+- [SWIM FAQ](https://top.swim.mlit.go.jp/swim/help)
+- [SWIM service list](https://top.swim.mlit.go.jp/swim/servicelist)
 
 ---
 
@@ -128,10 +149,20 @@ npm run demo
 
 ---
 
-## Environment Constraints
+## Japanese / 日本語
 
-> [!WARNING]
-> Because browsers restrict manually setting the `Cookie` header on cross-origin requests for security reasons, this library is primarily designed for **Node.js (server-side)**, **Edge Functions**, or **proxy server** environments. If used directly in client-side browser environments, it may trigger CORS and header modification issues unless requests are routed through a reverse proxy.
+### 概要
+
+国土交通省航空局の SWIM Web API から METAR データを取得するための TypeScript クライアントライブラリです。
+
+### 利用条件と制限
+
+- 対象の Web API サービスを利用できる SWIM アカウントと、必要な利用承認が必要です。
+- SWIM は当面、運航者、空港管理者、官公庁などの航空関係者による利用を想定しており、一般利用は想定されていません。
+- Web API 方式のサービスは HTTP によるリクエスト型のサービスであり、利用者側で API を呼び出すシステムを構築する必要があります。
+- SWIM portal で公開されている API 連携仕様書では、Web API の URL の一部がマスクされている場合があります。該当情報は、情報サービス提供者による利用承認後に通知されます。
+- ブラウザではクロスオリジンリクエスト時に `Cookie` ヘッダーを自由に設定できないため、このライブラリは Node.js、Edge Functions、またはプロキシサーバー上での利用を想定しています。
+- 取得した METAR データは、SWIM アカウントおよびサービス利用承認の範囲内で利用してください。
 
 ## Author
 halka
