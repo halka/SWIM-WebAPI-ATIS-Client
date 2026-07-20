@@ -22,6 +22,7 @@ This module provides a typed interface to authenticate and fetch METAR (Meteorol
 - An active SWIM portal account authorised by MLIT to use the target Web API service.
 - Approval for Web API use may be required by the relevant information service provider before the masked API details are disclosed.
 - A server-side JavaScript runtime with `fetch` support, such as Node.js 18 or later.
+- The METAR Web API service code disclosed by SWIM after approval, provided as `SWIM_METAR_SERVICE_CODE` or `metarServiceCode`.
 
 ## SWIM's WebAPI METAR Restrctions
 
@@ -30,6 +31,7 @@ This package is only a client implementation. Access to SWIM data remains subjec
 - SWIM is intended, for the time being, for aviation-related users such as operators, airport administrators, and government agencies; public/general use is not assumed by SWIM.
 - Web API services are request-based HTTP services and require the user to build the client-side system that calls the API.
 - Some Web API interface URLs are masked in the public SWIM portal documentation and are disclosed separately after the relevant information service provider approves use.
+- The masked METAR service code is not hard-coded. Set `SWIM_METAR_SERVICE_CODE` or pass `metarServiceCode` when constructing `SwimClient`.
 - This library is designed for Node.js, Edge Functions, or a proxy server. Browser clients cannot reliably set the required `Cookie` header for cross-origin SWIM requests.
 - Do not use this package, or SWIM METAR data retrieved with it, beyond the scope permitted by your SWIM account and service approval.
 
@@ -106,6 +108,7 @@ const restoredClient = new SwimClient({ session });
 Creates an instance of the SWIM client.
 - `options.authBaseUrl`: Custom base URL for authentication. Defaults to `https://top.swim.mlit.go.jp`.
 - `options.dataBaseUrl`: Custom base URL for data services. Defaults to `https://web.swim.mlit.go.jp`.
+- `options.metarServiceCode`: METAR Web API service code disclosed by SWIM after approval. Defaults to `process.env.SWIM_METAR_SERVICE_CODE` when available.
 - `options.session`: Initial session cookies (`SwimSession`).
 - `options.fetch`: Custom `fetch` implementation.
 
@@ -144,6 +147,7 @@ You can run the demo script directly. Passing credentials in environment variabl
 # To test against the live service:
 export SWIM_ID="your-email@example.com"
 export SWIM_PASSWORD="your-password"
+export SWIM_METAR_SERVICE_CODE="your-metar-service-code"
 npm run demo
 ```
 
@@ -161,6 +165,7 @@ npm run demo
 - SWIM は当面、運航者、空港管理者、官公庁などの航空関係者による利用を想定しており、一般利用は想定されていません。
 - Web API 方式のサービスは HTTP によるリクエスト型のサービスであり、利用者側で API を呼び出すシステムを構築する必要があります。
 - SWIM portal で公開されている API 連携仕様書では、Web API の URL の一部がマスクされている場合があります。該当情報は、情報サービス提供者による利用承認後に通知されます。
+- マスクされた METAR サービスコードはコード内に固定していません。`SWIM_METAR_SERVICE_CODE` を設定するか、`SwimClient` の `metarServiceCode` に指定してください。
 - ブラウザではクロスオリジンリクエスト時に `Cookie` ヘッダーを自由に設定できないため、このライブラリは Node.js、Edge Functions、またはプロキシサーバー上での利用を想定しています。
 - 取得した METAR データは、SWIM アカウントおよびサービス利用承認の範囲内で利用してください。
 

@@ -9,12 +9,14 @@ import {
 export class SwimClient {
   private authBaseUrl: string;
   private dataBaseUrl: string;
+  private metarServiceCode?: string;
   private session?: SwimSession;
   private fetchFn: typeof fetch;
 
   constructor(options: SwimClientOptions = {}) {
     this.authBaseUrl = options.authBaseUrl?.replace(/\/$/, '') ?? 'https://top.swim.mlit.go.jp';
     this.dataBaseUrl = options.dataBaseUrl?.replace(/\/$/, '') ?? 'https://web.swim.mlit.go.jp';
+    this.metarServiceCode = options.metarServiceCode ?? getEnvironmentVariable('SWIM_METAR_SERVICE_CODE');
     this.session = options.session;
     this.fetchFn = options.fetch ?? fetch;
   }
@@ -142,7 +144,11 @@ export class SwimClient {
       queryParams.set('dispcnt', options.dispcnt.toString());
     }
 
-    const url = `${this.dataBaseUrl}/f2atrq/web/FLV402001?${queryParams.toString()}`;
+    if (!this.metarServiceCode) {
+      throw new Error('SWIM_METAR_SERVICE_CODE is required to call the METAR Web API.');
+    }
+
+    const url = `${this.dataBaseUrl}/${encodeURIComponent(this.metarServiceCode)}/web/FLV402001?${queryParams.toString()}`;
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -169,4 +175,15 @@ export class SwimClient {
     const data = await response.json();
     return data as MetarResponse;
   }
+}
+
+function getEnvironmentVariable(name: string): string | undefined {
+  const processLike = globalThis as typeof globalThis & {
+    process?: {
+      env?: Record<string, string | undefined>;
+    };
+  };
+
+  const value = processLike.process?.env?.[name];
+  return value && value.trim() ? value.trim() : undefined;
 }

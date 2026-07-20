@@ -36,6 +36,12 @@ export interface SwimClientOptions {
   dataBaseUrl?: string;
 
   /**
+   * METAR Web API service code disclosed by SWIM after approval.
+   * If omitted, reads SWIM_METAR_SERVICE_CODE from the environment.
+   */
+  metarServiceCode?: string;
+
+  /**
    * Initial session cookies if already authenticated.
    */
   session?: SwimSession;
@@ -46,10 +52,13 @@ export interface SwimClientOptions {
   fetch?: typeof fetch;
 }
 
-export interface MetarResponse {
-  /**
-   * Since the exact response schema is not defined in the OpenAPI spec,
-   * we define a flexible structure to support dynamic fields.
-   */
-  [key: string]: any;
-}
+export type JsonPrimitive = string | number | boolean | null;
+export type JsonValue = JsonPrimitive | JsonObject | JsonArray;
+export type JsonObject = { [key: string]: JsonValue };
+export type JsonArray = JsonValue[];
+
+/**
+ * SWIM returns METAR data as JSON. The exact response schema is service-defined,
+ * so the client exposes the parsed JSON value without narrowing its shape.
+ */
+export type MetarResponse = JsonValue;

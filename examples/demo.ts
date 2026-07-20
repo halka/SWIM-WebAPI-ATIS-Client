@@ -6,17 +6,19 @@ async function run() {
 
   const id = process.env.SWIM_ID;
   const password = process.env.SWIM_PASSWORD;
+  const metarServiceCode = process.env.SWIM_METAR_SERVICE_CODE;
 
-  if (!id || !password) {
+  if (!id || !password || !metarServiceCode) {
     console.log('\n[Tip] To run this demo against the live SWIM API:');
     console.log('export SWIM_ID="your-email@example.com"');
     console.log('export SWIM_PASSWORD="your-password"');
+    console.log('export SWIM_METAR_SERVICE_CODE="your-metar-service-code"');
     console.log('npm run demo\n');
     console.log('Proceeding with placeholder credentials (this will fail on the live service but demonstrates API flow)...');
   }
 
   // Instantiate client (uses default MLIT base URLs)
-  const client = new SwimClient();
+  const client = new SwimClient({ metarServiceCode });
 
   const testId = id || 'swim@example.com';
   const testPassword = password || 'dummyPassword123';
