@@ -1,0 +1,200 @@
+openapi: 3.0.3
+info:
+  title: SWIM WebAPI METAR
+  version: 1.0.0
+  description: |
+    OpenAPI definition for the MLIT SWIM WebAPI METAR endpoints used by this client.
+    Access requires an approved SWIM account and the disclosed METAR service code.
+servers:
+  - url: https://top.swim.mlit.go.jp
+    description: SWIM authentication service
+  - url: https://web.swim.mlit.go.jp
+    description: SWIM data service
+tags:
+  - name: Authentication
+  - name: METAR
+paths:
+  /swim/webapi/login:
+    post:
+      tags:
+        - Authentication
+      summary: Authenticate with SWIM
+      description: |
+        Authenticates a SWIM user and returns the MSMSI and MSMAI session cookies
+        in the Set-Cookie response headers.
+      operationId: login
+      servers:
+        - url: https://top.swim.mlit.go.jp
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SwimCredentials'
+            examples:
+              credentials:
+                value:
+                  id: your-email@example.com
+                  password: your-password
+      responses:
+        '200':
+          description: Authentication succeeded.
+          headers:
+            Set-Cookie:
+              description: Session cookies containing MSMSI and MSMAI.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          description: Invalid request.
+        '401':
+          description: Authentication failed.
+        '500':
+          description: SWIM server error.
+  /{metarServiceCode}/web/FLV402001:
+    get:
+      tags:
+        - METAR
+      summary: Retrieve METAR observations
+      description: |
+        Retrieves METAR weather observation data for one or more ICAO airport codes.
+        The service code is disclosed by SWIM after approval and is intentionally
+        modeled as a path parameter.
+      operationId: getMetar
+      servers:
+        - url: https://web.swim.mlit.go.jp
+      security:
+        - MSMSI: []
+          MSMAI: []
+      parameters:
+        - name: metarServiceCode
+          in: path
+          required: true
+          description: METAR Web API service code disclosed by SWIM after approval.
+          schema:
+            type: string
+          example: webapi-metar-service-code
+        - name: location
+          in: query
+          required: true
+          description: Comma-separated ICAO airport codes.
+          schema:
+            type: string
+          examples:
+            single:
+              value: RJTT
+            multiple:
+              value: RJTT,RJCC
+        - name: dispcnt
+          in: query
+          required: false
+          description: Number of METAR records to return per airport.
+          schema:
+            type: integer
+            minimum: 1
+            default: 5
+          example: 5
+      responses:
+        '200':
+          description: METAR response returned by SWIM.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetarResponse'
+        '400':
+          description: Invalid request.
+        '401':
+          description: Authentication required or session is invalid.
+        '403':
+          description: Session may have expired, is invalid, or the account is not authorized for the service.
+        '500':
+          description: SWIM server error.
+components:
+  securitySchemes:
+    MSMSI:
+      type: apiKey
+      in: cookie
+      name: MSMSI
+    MSMAI:
+      type: apiKey
+      in: cookie
+      name: MSMAI
+  schemas:
+    SwimCredentials:
+      type: object
+      required:
+        - id
+        - password
+      properties:
+        id:
+          type: string
+          description: SWIM account ID, typically the registered email address.
+          example: your-email@example.com
+        password:
+          type: string
+          format: password
+          description: SWIM account password.
+          example: your-password
+    LoginResponse:
+      type: object
+      description: |
+        SWIM normally returns the session values as Set-Cookie headers. Some mock
+        environments may also return these values in the JSON response body.
+      additionalProperties: true
+      properties:
+        MSMSI:
+          type: string
+          description: Optional MSMSI session value.
+        MSMAI:
+          type: string
+          description: Optional MSMAI session value.
+    MetarResponse:
+      type: object
+      description: SWIM METAR response containing error metadata and ATIS/METAR text grouped by airport.
+      required:
+        - error_info
+        - data
+      properties:
+        error_info:
+          type: array
+          items:
+            $ref: '#/components/schemas/MetarErrorInfo'
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/MetarLocationData'
+    MetarErrorInfo:
+      type: object
+      required:
+        - error_code
+        - error_description
+      properties:
+        error_code:
+          type: string
+          example: '0'
+        error_description:
+          type: string
+          example: ''
+    MetarLocationData:
+      type: object
+      required:
+        - location
+        - atisInfo
+      properties:
+        location:
+          type: string
+          description: ICAO airport code.
+          example: RJTT
+        atisInfo:
+          type: array
+          description: ATIS/METAR text entries returned for the airport.
+          items:
+            type: string
+          example:
+            - |-
+              ATIS RJTT B
+              M0400
+              210400Z 19014KT 20KM FEW020CU SCT/// 33/25 Q1007/A2976=

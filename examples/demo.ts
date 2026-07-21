@@ -1,9 +1,88 @@
 import { SwimClient } from '../src/index.js';
 
+interface DemoOptions {
+  locations: string[];
+  dispcnt: number;
+}
+
+const defaultOptions: DemoOptions = {
+  locations: ['RJTT', 'RJCC'],
+  dispcnt: 5,
+};
+
+function parseDemoOptions(args: string[]): DemoOptions {
+  const locations: string[] = [];
+  let dispcnt = defaultOptions.dispcnt;
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index]?.trim();
+    if (!arg) continue;
+
+    if (arg === '-a' || arg === '--airport') {
+      const value = args[index + 1]?.trim();
+      if (!value) {
+        throw new Error(`${arg} requires an airport code.`);
+      }
+      locations.push(...parseLocations(value));
+      index += 1;
+      continue;
+    }
+
+    if (arg.startsWith('--airport=')) {
+      locations.push(...parseLocations(arg.slice('--airport='.length)));
+      continue;
+    }
+
+    if (arg === '-c' || arg === '--count' || arg === 'count') {
+      const value = args[index + 1]?.trim();
+      if (!value) {
+        throw new Error(`${arg} requires a positive integer count.`);
+      }
+      dispcnt = parseCount(value);
+      index += 1;
+      continue;
+    }
+
+    if (arg.startsWith('--count=')) {
+      dispcnt = parseCount(arg.slice('--count='.length));
+      continue;
+    }
+
+    throw new Error(`Unknown argument: ${arg}`);
+  }
+
+  return {
+    locations: locations.length > 0 ? locations : defaultOptions.locations,
+    dispcnt,
+  };
+}
+
+function parseLocations(value: string): string[] {
+  const locations = value
+    .split(',')
+    .map((location) => location.trim().toUpperCase())
+    .filter(Boolean);
+
+  if (locations.length === 0) {
+    throw new Error('Airport option requires at least one airport code.');
+  }
+
+  return locations;
+}
+
+function parseCount(value: string): number {
+  const count = Number(value);
+  if (!Number.isInteger(count) || count <= 0) {
+    throw new Error(`Count must be a positive integer: ${value}`);
+  }
+  return count;
+}
+
 // Simple demo script to showcase the SWIM client usage
 async function run() {
   console.log('=== Japan SWIM METAR Client Demo ===');
 
+  const { locations, dispcnt } = parseDemoOptions(process.argv.slice(2));
   const id = process.env.SWIM_ID;
   const password = process.env.SWIM_PASSWORD;
   const metarServiceCode = process.env.SWIM_METAR_SERVICE_CODE;
@@ -13,7 +92,8 @@ async function run() {
     console.log('export SWIM_ID="your-email@example.com"');
     console.log('export SWIM_PASSWORD="your-password"');
     console.log('export SWIM_METAR_SERVICE_CODE="your-metar-service-code"');
-    console.log('npm run demo\n');
+    console.log('npm run demo -- -a RJTT -a RJCC -c 5');
+    console.log('npm run demo -- --airport RJTT,RJCC --count 5\n');
     console.log('Proceeding with placeholder credentials (this will fail on the live service but demonstrates API flow)...');
   }
 
@@ -36,10 +116,10 @@ async function run() {
     console.log(`- MSMSI: ${session.MSMSI}`);
     console.log(`- MSMAI: ${session.MSMAI}`);
 
-    console.log('\nFetching METAR data for Haneda (RJTT) and Hakodate (RJCH) airport locations...');
+    console.log(`\nFetching ${dispcnt} METAR record(s) for airport location(s): ${locations.join(', ')}...`);
     const metarData = await client.getMetar({
-      location: ['RJTT', 'RJCC'],
-      dispcnt: 5, // get latest 2 records per location
+      location: locations,
+      dispcnt,
     });
 
     console.log('METAR response successfully received:');

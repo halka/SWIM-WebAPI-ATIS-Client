@@ -52,13 +52,20 @@ export interface SwimClientOptions {
   fetch?: typeof fetch;
 }
 
-export type JsonPrimitive = string | number | boolean | null;
-export type JsonValue = JsonPrimitive | JsonObject | JsonArray;
-export type JsonObject = { [key: string]: JsonValue };
-export type JsonArray = JsonValue[];
+export interface MetarErrorInfo {
+  error_code: string;
+  error_description: string;
+}
+
+export interface MetarLocationData {
+  location: string;
+  atisInfo: string[];
+}
 
 /**
- * SWIM returns METAR data as JSON. The exact response schema is service-defined,
- * so the client exposes the parsed JSON value without narrowing its shape.
+ * SWIM METAR response containing error metadata and ATIS/METAR text grouped by airport.
  */
-export type MetarResponse = JsonValue;
+export interface MetarResponse {
+  error_info: MetarErrorInfo[];
+  data: MetarLocationData[];
+}

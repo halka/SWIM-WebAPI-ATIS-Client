@@ -10,14 +10,24 @@ This module provides a typed interface to authenticate and fetch METAR (Meteorol
 
 国土交通省航空局の SWIM Web API から METAR データを取得するための TypeScript クライアントライブラリです。
 
+## Table of Contents
+
+- [Features](#features)
+- [Requirements](#requirements)
+- [SWIM's WebAPI METAR Restrictions](#swims-webapi-metar-restrictions)
+- [Verification & Development](#verification--development)
+- [Installation](#installation)
+- [Quick Start (Node.js)](#quick-start-nodejs)
+- [API Reference](#api-reference)
+- [Author](#author)
+
 ## Features
 
 - **Authentication Flow:** Automatically manages POST authentication and session cookies (`MSMSI` and `MSMAI`).
 - **Session Lifecycle:** Exposes session serialization methods to support cookie reuse across multiple client instances or runs.
-- **TypeScript Support:** Full types for credentials, query options, and client setup.
+- **TypeScript Support:** Full types for credentials, query options, client setup, and METAR responses.
+- **OpenAPI Definition:** Includes `openapi.yml` for the SWIM login and METAR endpoints used by this client.
 - **Zero Runtime Dependencies:** Built using modern standard APIs (`fetch` and `Headers`).
-
----
 
 ## Requirements
 
@@ -26,7 +36,7 @@ This module provides a typed interface to authenticate and fetch METAR (Meteorol
 - A server-side JavaScript runtime with `fetch` support, such as Node.js 18 or later.
 - The METAR Web API service code disclosed by SWIM after approval, provided as `SWIM_METAR_SERVICE_CODE` or `metarServiceCode`.
 
-## SWIM's WebAPI METAR Restrctions
+## SWIM's WebAPI METAR Restrictions
 
 This package is only a client implementation. Access to SWIM data remains subject to MLIT/SWIM account approval, service approval, and the terms published in the SWIM portal.
 
@@ -44,7 +54,8 @@ This package is only a client implementation. Access to SWIM data remains subjec
 - マスクされた METAR サービスコードはコード内に固定していません。`SWIM_METAR_SERVICE_CODE` を設定するか、`SwimClient` の `metarServiceCode` に指定してください。
 - ブラウザではクロスオリジンリクエスト時に `Cookie` ヘッダーを自由に設定できないため、このライブラリは Node.js、Edge Functions、またはプロキシサーバー上での利用を想定しています。
 - 取得した METAR データは、SWIM アカウントおよびサービス利用承認の範囲内で利用してください。
-References:
+
+### References:
 
 - [SWIM portal](https://top.swim.mlit.go.jp/swim)
 - [SWIM FAQ](https://top.swim.mlit.go.jp/swim/help)
@@ -67,6 +78,18 @@ export SWIM_PASSWORD="your-password"
 export SWIM_METAR_SERVICE_CODE="webapi-metar-service-code"
 npm run demo
 ```
+
+You can pass airport codes and the number of records to the demo:
+
+```bash
+npm run demo -- -a RJTT -a RJCC -c 5
+npm run demo -- --airport RJTT,RJCC --count 5
+npm run demo -- --airport=RJTT,RJCC --count=5
+npm run demo -- -a RJTT count 5
+```
+
+- `-a`, `--airport`: ICAO airport code. Can be repeated or comma-separated.
+- `-c`, `--count`, `count`: Number of records to retrieve per airport.
 
 ## Installation
 
@@ -97,9 +120,9 @@ try {
 
   console.log('Successfully authenticated!');
 
-  // 2. Retrieve METAR data for Haneda (RJTT) and Hakodate (RJCH)
+  // 2. Retrieve METAR data for Haneda (RJTT) and New Chitose (RJCC)
   const metarData = await client.getMetar({
-    location: ['RJTT', 'RJCH'],
+    location: ['RJTT', 'RJCC'],
     dispcnt: 5 // number of records to return per airport
   });
 
@@ -140,8 +163,34 @@ Authenticates via the `/swim/webapi/login` endpoint, saving session cookies in t
 
 #### `getMetar(options: GetMetarOptions): Promise<MetarResponse>`
 Retrieves weather report data for the specified airports.
-- `options.location`: Comma-separated string or an array of airport ICAO codes (e.g. `['RJTT', 'RJCH']`).
+- `options.location`: Comma-separated string or an array of airport ICAO codes (e.g. `['RJTT', 'RJCC']`).
 - `options.dispcnt`: Number of METAR records to retrieve per location.
+
+Returns:
+
+```typescript
+interface MetarResponse {
+  error_info: {
+    error_code: string;
+    error_description: string;
+  }[];
+  data: {
+    location: string;
+    atisInfo: string[];
+  }[];
+}
+```
+
+### OpenAPI
+
+The OpenAPI definition is available at `openapi.yml`.
+
+It defines:
+
+- `POST /swim/webapi/login`
+- `GET /{metarServiceCode}/web/FLV402001`
+- `MSMSI` and `MSMAI` cookie authentication
+- The typed `MetarResponse` payload shape
 
 #### `isAuthenticated(): boolean`
 Returns `true` if the client currently holds session cookies.
