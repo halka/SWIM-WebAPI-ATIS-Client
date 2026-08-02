@@ -3,19 +3,19 @@ info:
   title: SWIM ATIS Information Request API
   version: 1.0.1
   description: |
-    Client-facing OpenAPI definition based on MLIT Civil Aviation Bureau
+    Client-facing OpenAPI definition aligned with MLIT Civil Aviation Bureau
     "SWIM Service API Integration Specification, Appendix 07 - ATIS Information
     Request Service", version 1.0.1, issued 2025-05-30.
 
-    The TypeScript client exposes this operation as `getWeather()` and returns
-    the JSON value supplied by the API without transforming fields or converting
-    HTTP 200 business-error payloads into custom exceptions.
+    The TypeScript client exposes this operation as `getAtis()` and returns the
+    decoded HTTP 200 JSON without renaming, filtering, validating, or reshaping
+    response fields.
 servers:
   - url: https://web.swim.mlit.go.jp
     description: SWIM service provider system
 tags:
   - name: Authentication
-  - name: Weather
+  - name: ATIS
 paths:
   /swim/webapi/login:
     post:
@@ -40,9 +40,9 @@ paths:
           description: Authentication failed.
   /f2atrq/web/FLV402001:
     get:
-      tags: [Weather]
-      summary: Request SWIM ATIS/weather information
-      operationId: getWeather
+      tags: [ATIS]
+      summary: Request ATIS information
+      operationId: getAtis
       security:
         - MSMSI: []
           MSMAI: []
@@ -50,19 +50,19 @@ paths:
         - name: location
           in: query
           required: true
-          description: One ICAO location indicator or multiple comma-separated indicators.
+          description: One ICAO airport code or multiple comma-separated ICAO airport codes.
           schema:
             type: string
             minLength: 1
           examples:
             single:
-              value: RJCH
+              value: RJTT
             multiple:
               value: RJCC,RJCH
         - name: dispcnt
           in: query
           required: true
-          description: Number of records requested for each location.
+          description: Number of ATIS records requested per airport.
           schema:
             type: integer
             minimum: 1
@@ -71,12 +71,14 @@ paths:
       responses:
         '200':
           description: |
-            Original JSON payload supplied by SWIM. The client returns this value
-            without field renaming, filtering, schema enforcement, or business-error
-            conversion.
+            Normal result, no-data result, or business error. The service uses
+            HTTP 200 for all documented result codes.
           content:
             application/json:
-              schema: {}
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/AtisSuccessResponse'
+                  - $ref: '#/components/schemas/AtisErrorResponse'
               examples:
                 success:
                   value:
@@ -84,16 +86,22 @@ paths:
                       - error_code: '0'
                         error_description: ''
                     data:
-                      - location: RJCH
+                      - location: RJTT
                         atisinfo:
-                          - 'ATIS RJCH H'
+                          - 'ATIS RJTT R'
+                noData:
+                  value:
+                    error_info:
+                      - error_code: '1'
+                        error_description: ''
+                    data: []
                 businessError:
                   value:
                     error_info:
                       - error_code: '4'
                         error_description: RJ88
         default:
-          description: HTTP-level failure.
+          description: HTTP-level failure outside the documented ATIS result contract.
 components:
   securitySchemes:
     MSMSI:
@@ -117,3 +125,46 @@ components:
           type: string
           format: password
           minLength: 1
+    AtisErrorInfo:
+      type: object
+      required: [error_code, error_description]
+      additionalProperties: true
+      properties:
+        error_code:
+          type: string
+          enum: ['0', '1', '2', '3', '4', '5', '6', '99']
+        error_description:
+          type: string
+    AtisLocationData:
+      type: object
+      required: [location, atisinfo]
+      additionalProperties: true
+      properties:
+        location:
+          type: string
+        atisinfo:
+          type: array
+          items:
+            type: string
+    AtisSuccessResponse:
+      type: object
+      required: [error_info, data]
+      additionalProperties: true
+      properties:
+        error_info:
+          type: array
+          items:
+            $ref: '#/components/schemas/AtisErrorInfo'
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AtisLocationData'
+    AtisErrorResponse:
+      type: object
+      required: [error_info]
+      additionalProperties: true
+      properties:
+        error_info:
+          type: array
+          items:
+            $ref: '#/components/schemas/AtisErrorInfo'
