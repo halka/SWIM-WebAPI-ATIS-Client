@@ -5,6 +5,9 @@ import {
   SwimClientOptions,
   SwimCredentials,
   SwimSession,
+  GetWeatherOptions,
+  SwimClientOptions,
+  WeatherResponse,
 } from './types.js';
 
 const ATIS_PATH = '/f2atrq/web/FLV402001';
@@ -25,20 +28,18 @@ export class SwimApiError extends Error {
 }
 
 export class SwimClient {
-  private readonly authBaseUrl: string;
-  private readonly dataBaseUrl: string;
+  private authBaseUrl: string;
+  private dataBaseUrl: string;
+  private weatherServiceCode?: string;
   private session?: SwimSession;
   private readonly fetchFn: typeof fetch;
 
   constructor(options: SwimClientOptions = {}) {
-    this.authBaseUrl = trimTrailingSlash(options.authBaseUrl ?? 'https://top.swim.mlit.go.jp');
-    this.dataBaseUrl = trimTrailingSlash(options.dataBaseUrl ?? 'https://web.swim.mlit.go.jp');
-    this.session = options.session ? copyValidatedSession(options.session) : undefined;
-    this.fetchFn = options.fetch ?? globalThis.fetch;
-
-    if (typeof this.fetchFn !== 'function') {
-      throw new Error('A Fetch API implementation is required. Use Node.js 18+ or provide options.fetch.');
-    }
+    this.authBaseUrl = options.authBaseUrl?.replace(/\/$/, '') ?? 'https://top.swim.mlit.go.jp';
+    this.dataBaseUrl = options.dataBaseUrl?.replace(/\/$/, '') ?? 'https://web.swim.mlit.go.jp';
+    this.weatherServiceCode = options.weatherServiceCode ?? getEnvironmentVariable('SWIM_WEATHER_SERVICE_CODE');
+    this.session = options.session;
+    this.fetchFn = options.fetch ?? fetch;
   }
 
   public setSession(session: SwimSession): void {
@@ -63,9 +64,9 @@ export class SwimClient {
   }
 
   public async login(credentials: SwimCredentials): Promise<SwimSession> {
-    validateCredentials(credentials);
+    const url = `${this.authBaseUrl}/swim/webapi/login`;
 
-    const response = await this.fetchFn(`${this.authBaseUrl}/swim/webapi/login`, {
+    const response = await this.fetchFn(url, {
       method: 'POST',
       headers: {
         Accept: 'application/json',
@@ -75,7 +76,46 @@ export class SwimClient {
     });
 
     if (!response.ok) {
-      throw new Error(`Login failed with HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ''}.`);
+      throw new Error(`Login failed with status ${response.status}: ${response.statusText}`);
+    }
+
+    let setCookies: string[] = [];
+    if (typeof response.headers.getSetCookie === 'function') {
+      setCookies = response.headers.getSetCookie();
+    } else {
+      const rawCookie = response.headers.get('set-cookie');
+      if (rawCookie) {
+        setCookies = rawCookie.split(/,(?=[^;]*=)/);
+      }
+    }
+
+    let msmsi: string | undefined;
+    let msmai: string | undefined;
+
+    for (const cookie of setCookies) {
+      const mainPart = cookie.split(';')[0].trim();
+      const eqIdx = mainPart.indexOf('=');
+      if (eqIdx !== -1) {
+        const name = mainPart.substring(0, eqIdx).trim();
+        const value = mainPart.substring(eqIdx + 1).trim();
+        if (name === 'MSMSI') {
+          msmsi = value;
+        } else if (name === 'MSMAI') {
+          msmai = value;
+        }
+      }
+    }
+
+    if (!msmsi || !msmai) {
+      try {
+        const body = await response.json() as any;
+        if (body && typeof body === 'object') {
+          if (body.MSMSI) msmsi = body.MSMSI;
+          if (body.MSMAI) msmai = body.MSMAI;
+        }
+      } catch {
+        // Ignore JSON parse errors if response doesn't have JSON body
+      }
     }
 
     const session = await extractSession(response);
@@ -84,13 +124,9 @@ export class SwimClient {
   }
 
   /**
-   * Requests complete ATIS messages from SWIM API FLV402001.
-   *
-   * ATIS is terminal operational information for arriving/departing aircraft.
-   * Its text may include meteorological observations, but this method does not
-   * return standalone METAR reports or a parsed METAR data model.
+   * Retrieve weather observation data for specified airport locations.
    */
-  public async getAtis(options: GetAtisOptions): Promise<AtisResponse> {
+  public async getWeather(options: GetWeatherOptions): Promise<WeatherResponse> {
     if (!this.isAuthenticated()) {
       throw new Error('Authentication required. Call login() or setSession() first.');
     }
@@ -114,17 +150,11 @@ export class SwimClient {
       throw new Error(`ATIS request failed with HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ''}.`);
     }
 
-    const payload = await parseJsonResponse(response);
-    assertAtisResponse(payload);
-
-    const businessErrors = payload.error_info.filter(({ error_code }) => error_code !== '0' && error_code !== '1');
-    if (businessErrors.length > 0) {
-      throw new SwimApiError(formatBusinessError(businessErrors), payload, response.status);
+    if (!this.weatherServiceCode) {
+      throw new Error('SWIM_WEATHER_SERVICE_CODE is required to call the weather Web API.');
     }
 
-    return payload;
-  }
-}
+    const url = `${this.dataBaseUrl}/${encodeURIComponent(this.weatherServiceCode)}/web/FLV402001?${queryParams.toString()}`;
 
 function validateCredentials(credentials: SwimCredentials): void {
   if (!credentials || typeof credentials.id !== 'string' || !credentials.id.trim()) {
@@ -135,15 +165,10 @@ function validateCredentials(credentials: SwimCredentials): void {
   }
 }
 
-function copyValidatedSession(session: SwimSession): SwimSession {
-  if (!session || typeof session.MSMSI !== 'string' || !session.MSMSI) {
-    throw new TypeError('session.MSMSI is required.');
-  }
-  if (typeof session.MSMAI !== 'string' || !session.MSMAI) {
-    throw new TypeError('session.MSMAI is required.');
-  }
-  return { ...session };
-}
+    const cookieHeader = this.getCookieHeader();
+    if (cookieHeader) {
+      headers.Cookie = cookieHeader;
+    }
 
 function validateAtisOptions(options: GetAtisOptions): { locations: string[]; dispcnt: number } {
   if (!options || options.location === undefined || options.location === null) {
@@ -192,51 +217,13 @@ async function extractSession(response: Response): Promise<SwimSession> {
     }
   }
 
-  return copyValidatedSession({
-    MSMSI: values.get('MSMSI') ?? '',
-    MSMAI: values.get('MSMAI') ?? '',
-  });
-}
-
-function splitSetCookieHeader(value: string | null): string[] {
-  if (!value) return [];
-  return value.split(/,(?=\s*[^;,=\s]+=[^;,]*)/g);
-}
-
-async function parseJsonResponse(response: Response): Promise<unknown> {
-  const contentType = response.headers.get('content-type') ?? '';
-  if (!contentType.toLowerCase().includes('application/json')) {
-    throw new Error(`ATIS response Content-Type must be application/json, received ${contentType || 'none'}.`);
-  }
-
-  try {
-    return await response.json();
-  } catch (error) {
-    throw new Error('ATIS response body is not valid JSON.', { cause: error });
-  }
-}
-
-function assertAtisResponse(value: unknown): asserts value is AtisResponse {
-  if (!isRecord(value) || !Array.isArray(value.error_info) || value.error_info.length === 0) {
-    throw new TypeError('ATIS response is missing error_info.');
-  }
-
-  for (const item of value.error_info) {
-    if (!isRecord(item) || typeof item.error_code !== 'string' || typeof item.error_description !== 'string') {
-      throw new TypeError('ATIS response contains malformed error_info.');
+    if (!response.ok) {
+      throw new Error(`getWeather failed with status ${response.status}: ${response.statusText}`);
     }
   }
 
-  if ('data' in value && value.data !== undefined) {
-    if (!Array.isArray(value.data)) {
-      throw new TypeError('ATIS response data must be an array.');
-    }
-    for (const item of value.data) {
-      if (!isRecord(item) || typeof item.location !== 'string' || !Array.isArray(item.atisinfo)
-        || item.atisinfo.some((entry) => typeof entry !== 'string')) {
-        throw new TypeError('ATIS response contains malformed location data.');
-      }
-    }
+    const data = await response.json();
+    return data as WeatherResponse;
   }
 }
 
