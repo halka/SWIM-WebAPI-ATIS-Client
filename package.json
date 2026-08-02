@@ -1,7 +1,7 @@
 {
   "name": "swim-webapi-metar",
   "version": "1.0.0",
-  "description": "TypeScript client library for Japan MLIT SWIM WebAPI METAR service",
+  "description": "TypeScript client library for Japan MLIT SWIM WebAPI ATIS information request service",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -18,10 +18,9 @@
   },
   "keywords": [
     "swim",
-    "metar",
+    "atis",
     "mlit",
     "aviation",
-    "weather",
     "japan"
   ],
   "author": "halka",
