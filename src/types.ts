@@ -8,64 +8,76 @@ export interface SwimSession {
   MSMAI: string;
 }
 
-export interface GetMetarOptions {
+export interface GetAtisOptions {
   /**
-   * List of ICAO airport codes (e.g. ['RJCC', 'RJTT'] or 'RJCC,RJTT').
-   * Individual codes will be comma-separated and URL-encoded.
+   * ICAO airport code or codes. Multiple locations are sent as a comma-separated value.
    */
   location: string | string[];
 
   /**
-   * Number of METAR records to return per location.
-   * Defaults to 5.
+   * Number of ATIS entries returned per airport. The official API requires 1 through 50.
    */
-  dispcnt?: number;
+  dispcnt: number;
 }
 
+/** @deprecated Use GetAtisOptions. Retained for source compatibility. */
+export type GetMetarOptions = GetAtisOptions;
+
 export interface SwimClientOptions {
-  /**
-   * Base URL for the authentication service.
-   * Defaults to 'https://top.swim.mlit.go.jp'
-   */
+  /** Defaults to https://top.swim.mlit.go.jp. */
   authBaseUrl?: string;
 
-  /**
-   * Base URL for the flight/weather data service.
-   * Defaults to 'https://web.swim.mlit.go.jp'
-   */
+  /** Defaults to https://web.swim.mlit.go.jp. */
   dataBaseUrl?: string;
 
   /**
-   * METAR Web API service code disclosed by SWIM after approval.
-   * If omitted, reads SWIM_METAR_SERVICE_CODE from the environment.
+   * Path segment preceding /web/FLV402001. For the public v1.0.1 specification,
+   * this is f2atrq. A different value can be supplied for approved environments.
    */
+  atisServiceCode?: string;
+
+  /** @deprecated Use atisServiceCode. */
   metarServiceCode?: string;
 
-  /**
-   * Initial session cookies if already authenticated.
-   */
+  /** Initial session cookies if already authenticated. */
   session?: SwimSession;
 
-  /**
-   * Optional custom fetch function (e.g. for mocking or proxying).
-   */
+  /** Optional custom fetch implementation for testing or proxying. */
   fetch?: typeof fetch;
 }
 
-export interface MetarErrorInfo {
-  error_code: string;
+export type AtisErrorCode = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '99';
+
+export interface AtisErrorInfo {
+  error_code: AtisErrorCode | string;
   error_description: string;
 }
 
-export interface MetarLocationData {
+export interface AtisLocationData {
   location: string;
-  atisInfo: string[];
+  atisinfo: string[];
 }
 
-/**
- * SWIM METAR response containing error metadata and ATIS/METAR text grouped by airport.
- */
-export interface MetarResponse {
-  error_info: MetarErrorInfo[];
-  data: MetarLocationData[];
+export interface AtisSuccessResponse {
+  error_info: AtisErrorInfo[];
+  data: AtisLocationData[];
+}
+
+export interface AtisErrorResponse {
+  error_info: AtisErrorInfo[];
+  data?: never;
+}
+
+export type AtisResponse = AtisSuccessResponse | AtisErrorResponse;
+
+/** @deprecated Use AtisErrorInfo. */
+export type MetarErrorInfo = AtisErrorInfo;
+/** @deprecated Use AtisLocationData. */
+export type MetarLocationData = AtisLocationData;
+/** @deprecated Use AtisResponse. */
+export type MetarResponse = AtisResponse;
+
+export interface SwimApiErrorOptions {
+  response: AtisResponse;
+  status: number;
 }
