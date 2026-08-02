@@ -7,8 +7,12 @@ info:
     "SWIM Service API Integration Specification, Appendix 07 - ATIS Information
     Request Service", version 1.0.1, issued 2025-05-30.
 
-    Authentication is included because it is required by this client library, but
-    the Appendix 07 document itself specifies FLV402001 only.
+    This API returns complete ATIS messages. ATIS is a terminal operational
+    information service and may include meteorological observations. It is not
+    a standalone METAR retrieval API and this contract does not model METAR fields.
+
+    Authentication is included because it is required by this client library,
+    but Appendix 07 itself specifies FLV402001 only.
 servers:
   - url: https://web.swim.mlit.go.jp
     description: SWIM service provider system
@@ -40,10 +44,12 @@ paths:
   /f2atrq/web/FLV402001:
     get:
       tags: [ATIS]
-      summary: Request ATIS information
+      summary: Request complete ATIS messages
       description: |
-        Returns ATIS information matching the requested ICAO airport locations.
-        The specification represents both success and business errors with HTTP 200.
+        Returns ATIS messages matching the requested ICAO aerodrome location
+        indicators. Each `atisinfo` string is a complete ATIS message and may
+        include operational, runway, approach, and meteorological information.
+        The service represents success and business errors with HTTP 200.
       operationId: getAtis
       security:
         - MSMSI: []
@@ -52,7 +58,7 @@ paths:
         - name: location
           in: query
           required: true
-          description: One ICAO airport code, or multiple codes separated by commas.
+          description: One ICAO aerodrome location indicator, or multiple indicators separated by commas.
           schema:
             type: string
             minLength: 1
@@ -64,7 +70,7 @@ paths:
         - name: dispcnt
           in: query
           required: true
-          description: Number of ATIS entries returned for each airport.
+          description: Number of ATIS messages returned for each aerodrome.
           schema:
             type: integer
             minimum: 1
@@ -88,7 +94,7 @@ paths:
                     data:
                       - location: RJTT
                         atisinfo:
-                          - "ATIS RJTT R\nM0230\n..."
+                          - "ATIS RJTT R\nM0230\n(APCH)ILS Z RWY34L/ILS Z RWY34R\n..."
                 noData:
                   value:
                     error_info:
@@ -147,12 +153,12 @@ components:
       properties:
         location:
           type: string
-          description: ICAO airport code.
+          description: ICAO aerodrome location indicator.
         atisinfo:
           type: array
           items:
             type: string
-          description: ATIS information entries.
+          description: Complete ATIS messages. These are not standalone parsed METAR objects.
     AtisSuccessResponse:
       type: object
       required: [error_info, data]
