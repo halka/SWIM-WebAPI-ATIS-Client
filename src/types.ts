@@ -23,16 +23,10 @@ export interface GetWeatherOptions {
 }
 
 export interface SwimClientOptions {
-  /**
-   * Base URL for the authentication service.
-   * Defaults to 'https://top.swim.mlit.go.jp'
-   */
+  /** Authentication origin. Defaults to https://top.swim.mlit.go.jp. */
   authBaseUrl?: string;
 
-  /**
-   * Base URL for the flight/weather data service.
-   * Defaults to 'https://web.swim.mlit.go.jp'
-   */
+  /** ATIS service origin. Defaults to https://web.swim.mlit.go.jp. */
   dataBaseUrl?: string;
 
   /**
@@ -46,9 +40,7 @@ export interface SwimClientOptions {
    */
   session?: SwimSession;
 
-  /**
-   * Optional custom fetch function (e.g. for mocking or proxying).
-   */
+  /** Custom Fetch API implementation, primarily for tests and controlled proxies. */
   fetch?: typeof fetch;
 }
 
@@ -59,7 +51,7 @@ export interface WeatherErrorInfo {
 
 export interface WeatherLocationData {
   location: string;
-  atisInfo: string[];
+  atisinfo: string[];
 }
 
 /**
@@ -69,3 +61,5 @@ export interface WeatherResponse {
   error_info: WeatherErrorInfo[];
   data: WeatherLocationData[];
 }
+
+export type AtisResponse = AtisSuccessResponse | AtisErrorResponse;
