@@ -3,26 +3,30 @@ info:
   title: SWIM ATIS Information Request API
   version: 1.0.1
   description: |
-    Client-facing OpenAPI definition based on MLIT Civil Aviation Bureau
+    Client-facing OpenAPI definition for the MLIT Civil Aviation Bureau
+    SWIM ATIS Information Request Service (FLV402001), based on
     "SWIM Service API Integration Specification, Appendix 07 - ATIS Information
     Request Service", version 1.0.1, issued 2025-05-30.
 
-    The TypeScript client exposes this operation as `getWeather()` and returns
-    the JSON value supplied by the API without transforming fields or converting
-    HTTP 200 business-error payloads into custom exceptions.
+    The TypeScript client exposes the service operation as `getWeather()`.
+    Successful HTTP 200 responses are returned from `Response.json()` without
+    renaming fields, filtering properties, reshaping objects, or converting
+    SWIM business-error payloads into custom exceptions.
 servers:
   - url: https://web.swim.mlit.go.jp
     description: SWIM service provider system
 tags:
   - name: Authentication
-  - name: Weather
+  - name: ATIS
 paths:
   /swim/webapi/login:
     post:
       tags: [Authentication]
       summary: Authenticate with SWIM
+      operationId: login
       servers:
         - url: https://top.swim.mlit.go.jp
+          description: SWIM authentication service
       requestBody:
         required: true
         content:
@@ -31,17 +35,23 @@ paths:
               $ref: '#/components/schemas/SwimCredentials'
       responses:
         '200':
-          description: Authentication response. The client expects MSMSI and MSMAI cookies.
+          description: Authentication response containing MSMSI and MSMAI cookies.
           headers:
             Set-Cookie:
+              description: Session cookies returned by SWIM.
               schema:
                 type: string
         default:
-          description: Authentication failed.
+          description: Authentication failed at the HTTP level.
   /f2atrq/web/FLV402001:
     get:
-      tags: [Weather]
-      summary: Request SWIM ATIS/weather information
+      tags: [ATIS]
+      summary: Request ATIS information
+      description: |
+        Requests ATIS information for one or more ICAO aerodrome location
+        indicators. The service may return normal data, a no-data response, or a
+        documented business-error object with HTTP 200. The client returns the
+        decoded JSON value unchanged in all HTTP 200 cases.
       operationId: getWeather
       security:
         - MSMSI: []
@@ -50,10 +60,12 @@ paths:
         - name: location
           in: query
           required: true
-          description: One ICAO location indicator or multiple comma-separated indicators.
+          description: |
+            One four-character ICAO aerodrome location indicator, or multiple
+            indicators separated by commas.
           schema:
             type: string
-            minLength: 1
+            minLength: 4
           examples:
             single:
               value: RJCH
@@ -71,14 +83,16 @@ paths:
       responses:
         '200':
           description: |
-            Original JSON payload supplied by SWIM. The client returns this value
-            without field renaming, filtering, schema enforcement, or business-error
-            conversion.
+            Original JSON payload supplied by SWIM. The TypeScript client returns
+            this value without runtime schema validation or transformation.
           content:
             application/json:
-              schema: {}
+              schema:
+                type: object
+                additionalProperties: true
               examples:
                 success:
+                  summary: Successful ATIS response
                   value:
                     error_info:
                       - error_code: '0'
@@ -87,13 +101,21 @@ paths:
                       - location: RJCH
                         atisinfo:
                           - 'ATIS RJCH H'
+                noData:
+                  summary: No matching data
+                  value:
+                    error_info:
+                      - error_code: '1'
+                        error_description: ''
+                    data: []
                 businessError:
+                  summary: Business error returned with HTTP 200
                   value:
                     error_info:
                       - error_code: '4'
                         error_description: RJ88
         default:
-          description: HTTP-level failure.
+          description: HTTP-level failure. The client throws an Error.
 components:
   securitySchemes:
     MSMSI:
