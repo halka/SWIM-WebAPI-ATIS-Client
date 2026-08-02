@@ -7,9 +7,9 @@ The public API is intentionally small:
 - authenticate with `login()`;
 - restore or clear a session;
 - request ATIS/weather JSON with `getWeather()`;
-- receive the JSON value returned by SWIM without field renaming, filtering, validation, or reshaping.
+- receive the JSON value returned by SWIM without field renaming, filtering, runtime validation, or reshaping.
 
-No legacy API aliases are provided.
+No legacy API aliases or compatibility wrappers are provided.
 
 ## Requirements
 
@@ -123,7 +123,20 @@ The method:
 
 - requires an authenticated session;
 - throws for non-successful HTTP status codes;
-- returns HTTP 200 JSON unchanged, including SWIM business-error objects and additional fields unknown to this package.
+- returns HTTP 200 JSON unchanged, including normal results, no-data results, business-error objects, and additional fields unknown to this package.
+
+Example business-error payload returned normally:
+
+```json
+{
+  "error_info": [
+    {
+      "error_code": "4",
+      "error_description": "RJ88"
+    }
+  ]
+}
+```
 
 ### Session methods
 
@@ -161,11 +174,27 @@ try {
 }
 ```
 
-HTTP failures, invalid options, missing authentication, and unusable login responses throw errors. A SWIM business error represented as JSON with HTTP 200 is returned to the caller without conversion into a custom exception.
+The following conditions throw:
+
+- missing authentication;
+- invalid credentials or request options;
+- login responses without both required session cookies;
+- non-successful HTTP status codes;
+- invalid JSON returned by the runtime's `Response.json()` implementation.
+
+A SWIM business error represented as JSON with HTTP 200 is returned to the caller without conversion into a custom exception.
 
 ## OpenAPI
 
-`openapi.yml` documents the service endpoint and request parameters. The response schema is intentionally open because the client returns the original JSON rather than enforcing a locally narrowed representation.
+`openapi.yml` documents:
+
+- `POST /swim/webapi/login`;
+- `GET /f2atrq/web/FLV402001`;
+- `MSMSI` and `MSMAI` cookie authentication;
+- the `location` and `dispcnt` request parameters;
+- the intentionally open HTTP 200 JSON response contract.
+
+The OpenAPI response schema allows additional properties because the client returns the original JSON instead of enforcing a narrowed local representation.
 
 ## Security
 
@@ -179,7 +208,7 @@ HTTP failures, invalid options, missing authentication, and unusable login respo
 - SWIM portal: https://top.swim.mlit.go.jp/swim/
 - SWIM service list: https://top.swim.mlit.go.jp/swim/servicelist
 - SWIM FAQ: https://top.swim.mlit.go.jp/swim/help
-- MLIT Civil Aviation Bureau, SWIM Service API Integration Specification, Appendix 07 — ATIS Information Request Service
+- MLIT Civil Aviation Bureau, *SWIM Service API Integration Specification, Appendix 07 — ATIS Information Request Service*, version 1.0.1
 
 ## Author
 
