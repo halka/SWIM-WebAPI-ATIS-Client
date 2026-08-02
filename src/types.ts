@@ -20,9 +20,6 @@ export interface GetAtisOptions {
   dispcnt: number;
 }
 
-/** @deprecated Use GetAtisOptions. Retained for source compatibility. */
-export type GetMetarOptions = GetAtisOptions;
-
 export interface SwimClientOptions {
   /** Defaults to https://top.swim.mlit.go.jp. */
   authBaseUrl?: string;
@@ -35,9 +32,6 @@ export interface SwimClientOptions {
    * this is f2atrq. A different value can be supplied for approved environments.
    */
   atisServiceCode?: string;
-
-  /** @deprecated Use atisServiceCode. */
-  metarServiceCode?: string;
 
   /** Initial session cookies if already authenticated. */
   session?: SwimSession;
@@ -69,13 +63,6 @@ export interface AtisErrorResponse {
 }
 
 export type AtisResponse = AtisSuccessResponse | AtisErrorResponse;
-
-/** @deprecated Use AtisErrorInfo. */
-export type MetarErrorInfo = AtisErrorInfo;
-/** @deprecated Use AtisLocationData. */
-export type MetarLocationData = AtisLocationData;
-/** @deprecated Use AtisResponse. */
-export type MetarResponse = AtisResponse;
 
 export interface SwimApiErrorOptions {
   response: AtisResponse;
