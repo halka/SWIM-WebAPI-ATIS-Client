@@ -21,7 +21,7 @@ The captured portal screen showed 23 selectable ICAO aerodrome location indicato
 | `RJOA` | Hiroshima | [Official](https://www.hij.airport.jp/en/) | [FR24](https://www.flightradar24.com/data/airports/hij) |
 | `RJOT` | Takamatsu | [Official](https://www.takamatsu-airport.com/) | [FR24](https://www.flightradar24.com/data/airports/tak) |
 | `RJOM` | Matsuyama | [Official](https://www.matsuyama-airport.co.jp/) | [FR24](https://www.flightradar24.com/data/airports/myj) |
-| `RJOK` | Kochi (Kochi Ryoma) | [Official](https://www.kochiap.co.jp/) | [FR24](https://www.flightradar24.com/data/airports/kcz) |
+| `RJOK` | Kochi | [Official](https://www.kochiap.co.jp/) | [FR24](https://www.flightradar24.com/data/airports/kcz) |
 | `RJFF` | Fukuoka | [Official](https://www.fukuoka-airport.jp/en/) | [FR24](https://www.flightradar24.com/data/airports/fuk) |
 | `RJFS` | Saga | [Official](https://saga-ab.jp/) | [FR24](https://www.flightradar24.com/data/airports/hsg) |
 | `RJFU` | Nagasaki | [Official](https://www.nagasaki-airport.jp/en/) | [FR24](https://www.flightradar24.com/data/airports/ngs) |
