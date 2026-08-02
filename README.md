@@ -1,20 +1,24 @@
 # SWIM WebAPI ATIS Client
 
-TypeScript client for the **ATIS Information Request Service** (`FLV402001`) operated on SWIM by the Civil Aviation Bureau of Japan's Ministry of Land, Infrastructure, Transport and Tourism (MLIT).
+TypeScript client for the Japanese MLIT SWIM ATIS Information Request Service (`FLV402001`).
 
-The implementation follows **SWIM Service API Integration Specification, Appendix 07 - ATIS Information Request Service, version 1.0.1 (2025-05-30)**.
+The public API is intentionally small:
 
-> [!IMPORTANT]
-> The public API is `getWeather()`. It returns the JSON value supplied by the SWIM API without renaming fields, validating the response schema, filtering properties, or converting business-error payloads into custom objects.
+- authenticate with `login()`;
+- restore or clear a session;
+- request ATIS/weather JSON with `getWeather()`;
+- receive the JSON value returned by SWIM without field renaming, filtering, validation, or reshaping.
+
+No legacy API aliases are provided.
 
 ## Requirements
 
 - Node.js 18 or newer, or another trusted server-side runtime with Fetch API support
 - A valid SWIM account
-- ATIS Information Request Service access enabled for that account
-- Network access to the SWIM authentication and data-service origins
+- Access to the ATIS Information Request Service
+- Network access to the SWIM authentication and service endpoints
 
-Do not place SWIM credentials or session cookies in browser-delivered code.
+Do not expose credentials or session cookies in browser-delivered code.
 
 ## Installation
 
@@ -43,12 +47,38 @@ await client.login({
 });
 
 const response = await client.getWeather({
-  location: ['RJCH', 'RJTT'],
+  location: ['RJTT', 'RJCC'],
   dispcnt: 3,
 });
 
 console.log(JSON.stringify(response, null, 2));
 ```
+
+`response` is the value produced by the platform's `Response.json()` implementation. The client does not reinterpret SWIM business-error objects returned with HTTP 200.
+
+## Typed consumption
+
+The default return type is `unknown`, because the library preserves the service response rather than imposing a local schema. Applications that maintain their own verified response type can supply it as a generic argument:
+
+```typescript
+interface AtisPayload {
+  error_info: Array<{
+    error_code: string;
+    error_description: string;
+  }>;
+  data?: Array<{
+    location: string;
+    atisinfo: string[];
+  }>;
+}
+
+const response = await client.getWeather<AtisPayload>({
+  location: 'RJTT',
+  dispcnt: 5,
+});
+```
+
+The generic type is a compile-time assertion only. It does not transform or validate the runtime JSON.
 
 ## API
 
@@ -56,42 +86,44 @@ console.log(JSON.stringify(response, null, 2));
 
 Options:
 
-- `authBaseUrl`: authentication origin; default `https://top.swim.mlit.go.jp`
-- `dataBaseUrl`: ATIS service origin; default `https://web.swim.mlit.go.jp`
-- `session`: previously obtained `MSMSI` and `MSMAI` values
-- `fetch`: custom Fetch implementation for tests or a controlled proxy
+- `authBaseUrl`: authentication origin; defaults to `https://top.swim.mlit.go.jp`
+- `dataBaseUrl`: ATIS service origin; defaults to `https://web.swim.mlit.go.jp`
+- `session`: existing `MSMSI` and `MSMAI` cookie values
+- `fetch`: custom Fetch implementation for tests or controlled proxies
 
-The service path `/f2atrq/web/FLV402001` is fixed.
+Trailing slashes in custom base URLs are removed.
 
-### `login(credentials): Promise<SwimSession>`
+### `login(credentials)`
 
-Authenticates and stores the `MSMSI` and `MSMAI` session cookies.
-
-### `getWeather(options): Promise<unknown>`
-
-Requests SWIM ATIS/weather information.
+Authenticates against `/swim/webapi/login`, stores the `MSMSI` and `MSMAI` cookies, and returns a copy of the session object.
 
 ```typescript
-interface GetWeatherOptions {
-  location: string | string[];
-  dispcnt: number;
-}
+const session = await client.login({
+  id: 'user@example.com',
+  password: 'secret',
+});
 ```
 
-Client-side request validation:
+### `getWeather(options)`
 
-- `location` is normalized to uppercase and must contain four-character ICAO location indicators.
-- `dispcnt` must be an integer from `1` through `50`.
+Calls:
 
-Response behavior:
+```text
+GET /f2atrq/web/FLV402001
+```
 
-- For HTTP success responses, `getWeather()` returns the exact value produced by `response.json()`.
-- Response keys and nested structures are not transformed.
-- Unknown or additional properties are preserved.
-- SWIM business-error JSON returned with HTTP 200 is returned normally and is not converted into an exception.
-- HTTP-level failures still throw an `Error` containing the status code and status text.
+Options:
 
-Callers should narrow or validate the returned `unknown` value according to their own requirements.
+- `location`: one ICAO aerodrome code, a comma-separated string, or an array of codes
+- `dispcnt`: records requested per aerodrome; integer `1..50`, default `5`
+
+Location values are trimmed and converted to uppercase before transmission. Syntax is checked as four alphanumeric characters; SWIM remains authoritative for actual support.
+
+The method:
+
+- requires an authenticated session;
+- throws for non-successful HTTP status codes;
+- returns HTTP 200 JSON unchanged, including SWIM business-error objects and additional fields unknown to this package.
 
 ### Session methods
 
@@ -101,40 +133,53 @@ Callers should narrow or validate the returned `unknown` value according to thei
 - `clearSession()`
 - `getCookieHeader()`
 
-## Wire contract
+Session values are copied when accepted or returned so callers cannot mutate internal state accidentally.
 
-- `GET https://web.swim.mlit.go.jp/f2atrq/web/FLV402001`
-- Required `location`: one ICAO aerodrome location indicator or comma-separated indicators
-- Required `dispcnt`: integer from `1` through `50`
-- JSON response returned without client-side transformation
+## Example program
 
-The API commonly returns fields such as `error_info`, `data`, `location`, and `atisinfo`, but this library deliberately does not impose a fixed TypeScript response model. The service response is authoritative.
-
-## Live demo
+Set credentials and run the command-line example:
 
 ```bash
 export SWIM_ID="your-email@example.com"
 export SWIM_PASSWORD="your-password"
-npm run demo -- --airport RJCH --count 3
+
+npm run demo -- --airport RJTT --count 3
+npm run demo -- -a RJTT -a RJCC -c 5
+npm run demo -- --help
 ```
+
+The example prints the complete JSON value returned by SWIM.
+
+## Error handling
+
+```typescript
+try {
+  const response = await client.getWeather({ location: 'RJTT' });
+  console.log(response);
+} catch (error) {
+  console.error(error);
+}
+```
+
+HTTP failures, invalid options, missing authentication, and unusable login responses throw errors. A SWIM business error represented as JSON with HTTP 200 is returned to the caller without conversion into a custom exception.
+
+## OpenAPI
+
+`openapi.yml` documents the service endpoint and request parameters. The response schema is intentionally open because the client returns the original JSON rather than enforcing a locally narrowed representation.
 
 ## Security
 
-- Use the client on a trusted server, Edge runtime, or controlled proxy.
-- Never expose SWIM credentials or session cookies in browser code, logs, or source control.
-- Treat live-service tests separately from unit tests.
-- Re-authenticate according to SWIM's current session policy; do not assume a session remains valid indefinitely.
+- Run the client in a trusted server-side environment.
+- Never commit credentials or cookies.
+- Avoid logging authentication material.
+- Treat sessions as secrets and refresh them according to current SWIM policy.
 
-## References
+## Official references
 
-Official SWIM sources:
-
-- [SWIM portal](https://top.swim.mlit.go.jp/swim/)
-- [SWIM service list](https://top.swim.mlit.go.jp/swim/servicelist)
-- [SWIM FAQ](https://top.swim.mlit.go.jp/swim/help)
-- [SWIM notices](https://top.swim.mlit.go.jp/swim/notice)
-- MLIT Civil Aviation Bureau, *SWIM Service API Integration Specification, Appendix 07 - ATIS Information Request Service*, v1.0.1
-- MLIT Civil Aviation Bureau, *SWIM Service API Integration Specification - Common Part*
+- SWIM portal: https://top.swim.mlit.go.jp/swim/
+- SWIM service list: https://top.swim.mlit.go.jp/swim/servicelist
+- SWIM FAQ: https://top.swim.mlit.go.jp/swim/help
+- MLIT Civil Aviation Bureau, SWIM Service API Integration Specification, Appendix 07 — ATIS Information Request Service
 
 ## Author
 
