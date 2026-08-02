@@ -1,189 +1,291 @@
 import {
+  AtisErrorInfo,
+  AtisResponse,
+  GetAtisOptions,
+  GetMetarOptions,
+  MetarResponse,
+  SwimClientOptions,
   SwimCredentials,
   SwimSession,
-  GetMetarOptions,
-  SwimClientOptions,
-  MetarResponse,
 } from './types.js';
 
+const OFFICIAL_ATIS_SERVICE_CODE = 'f2atrq';
+const ATIS_API_ID = 'FLV402001';
+const LOCATION_PATTERN = /^[A-Z0-9]{4}$/;
+
+export class SwimApiError extends Error {
+  public readonly errorInfo: AtisErrorInfo[];
+  public readonly response: AtisResponse;
+  public readonly status: number;
+
+  constructor(message: string, response: AtisResponse, status = 200) {
+    super(message);
+    this.name = 'SwimApiError';
+    this.errorInfo = response.error_info;
+    this.response = response;
+    this.status = status;
+  }
+}
+
 export class SwimClient {
-  private authBaseUrl: string;
-  private dataBaseUrl: string;
-  private metarServiceCode?: string;
+  private readonly authBaseUrl: string;
+  private readonly dataBaseUrl: string;
+  private readonly atisServiceCode: string;
   private session?: SwimSession;
-  private fetchFn: typeof fetch;
+  private readonly fetchFn: typeof fetch;
 
   constructor(options: SwimClientOptions = {}) {
-    this.authBaseUrl = options.authBaseUrl?.replace(/\/$/, '') ?? 'https://top.swim.mlit.go.jp';
-    this.dataBaseUrl = options.dataBaseUrl?.replace(/\/$/, '') ?? 'https://web.swim.mlit.go.jp';
-    this.metarServiceCode = options.metarServiceCode ?? getEnvironmentVariable('SWIM_METAR_SERVICE_CODE');
+    this.authBaseUrl = trimTrailingSlash(options.authBaseUrl ?? 'https://top.swim.mlit.go.jp');
+    this.dataBaseUrl = trimTrailingSlash(options.dataBaseUrl ?? 'https://web.swim.mlit.go.jp');
+    this.atisServiceCode = normalizeServiceCode(
+      options.atisServiceCode
+        ?? options.metarServiceCode
+        ?? getEnvironmentVariable('SWIM_ATIS_SERVICE_CODE')
+        ?? getEnvironmentVariable('SWIM_METAR_SERVICE_CODE')
+        ?? OFFICIAL_ATIS_SERVICE_CODE,
+    );
     this.session = options.session;
-    this.fetchFn = options.fetch ?? fetch;
+    this.fetchFn = options.fetch ?? globalThis.fetch;
+
+    if (typeof this.fetchFn !== 'function') {
+      throw new Error('A Fetch API implementation is required. Use Node.js 18+ or provide options.fetch.');
+    }
   }
 
-  /**
-   * Set the session cookies directly.
-   */
   public setSession(session: SwimSession): void {
-    this.session = session;
+    validateSession(session);
+    this.session = { ...session };
   }
 
-  /**
-   * Get the current session cookies.
-   */
+  public clearSession(): void {
+    this.session = undefined;
+  }
+
   public getSession(): SwimSession | undefined {
-    return this.session;
+    return this.session ? { ...this.session } : undefined;
   }
 
-  /**
-   * Check if the client has session cookies.
-   */
   public isAuthenticated(): boolean {
-    return !!(this.session?.MSMSI && this.session?.MSMAI);
+    return Boolean(this.session?.MSMSI && this.session?.MSMAI);
   }
 
-  /**
-   * Build the Cookie header string from the current session.
-   */
   public getCookieHeader(): string | undefined {
-    if (!this.session) return undefined;
-    const parts: string[] = [];
-    if (this.session.MSMSI) parts.push(`MSMSI=${this.session.MSMSI}`);
-    if (this.session.MSMAI) parts.push(`MSMAI=${this.session.MSMAI}`);
-    return parts.length > 0 ? parts.join('; ') : undefined;
+    if (!this.isAuthenticated()) return undefined;
+    return `MSMSI=${this.session!.MSMSI}; MSMAI=${this.session!.MSMAI}`;
   }
 
-  /**
-   * Authenticate with the SWIM platform using credentials.
-   * On success, parses and stores MSMSI and MSMAI session cookies.
-   */
   public async login(credentials: SwimCredentials): Promise<SwimSession> {
-    const url = `${this.authBaseUrl}/swim/webapi/login`;
-    
-    const response = await this.fetchFn(url, {
+    validateCredentials(credentials);
+
+    const response = await this.fetchFn(`${this.authBaseUrl}/swim/webapi/login`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        'Content-Type': 'application/json; charset=UTF-8',
       },
       body: JSON.stringify(credentials),
     });
 
     if (!response.ok) {
-      throw new Error(`Login failed with status ${response.status}: ${response.statusText}`);
+      throw new Error(`Login failed with HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ''}.`);
     }
 
-    // Parse Set-Cookie headers
-    let setCookies: string[] = [];
-    if (typeof response.headers.getSetCookie === 'function') {
-      setCookies = response.headers.getSetCookie();
-    } else {
-      const rawCookie = response.headers.get('set-cookie');
-      if (rawCookie) {
-        // Fallback parser for environments where getSetCookie is not available
-        // Note: set-cookie values are comma separated but cookie expires dates also contain commas.
-        // We use a regex lookup that splits by comma only when followed by a non-space name=value pattern.
-        setCookies = rawCookie.split(/,(?=[^;]*=)/);
-      }
-    }
-
-    let msmsi: string | undefined;
-    let msmai: string | undefined;
-
-    for (const cookie of setCookies) {
-      const mainPart = cookie.split(';')[0].trim();
-      const eqIdx = mainPart.indexOf('=');
-      if (eqIdx !== -1) {
-        const name = mainPart.substring(0, eqIdx).trim();
-        const value = mainPart.substring(eqIdx + 1).trim();
-        if (name === 'MSMSI') {
-          msmsi = value;
-        } else if (name === 'MSMAI') {
-          msmai = value;
-        }
-      }
-    }
-
-    if (!msmsi || !msmai) {
-      // If we didn't get cookies, check if they are returned in the response body or if they exist in the instance already.
-      // Sometimes APIs might return them in JSON in certain mock/testing configurations.
-      try {
-        const body = await response.json() as any;
-        if (body && typeof body === 'object') {
-          if (body.MSMSI) msmsi = body.MSMSI;
-          if (body.MSMAI) msmai = body.MSMAI;
-        }
-      } catch {
-        // Ignore JSON parse errors if response doesn't have JSON body
-      }
-    }
-
-    if (!msmsi || !msmai) {
-      throw new Error('Login response did not return expected MSMSI and MSMAI session cookies.');
-    }
-
-    const session: SwimSession = { MSMSI: msmsi, MSMAI: msmai };
+    const session = await extractSession(response);
     this.session = session;
-    return session;
+    return { ...session };
   }
 
   /**
-   * Retrieve METAR weather observation data for specified airport locations.
+   * Calls the official ATIS information request API (FLV402001).
+   * Business errors are returned with HTTP 200 by SWIM and are raised as SwimApiError.
    */
-  public async getMetar(options: GetMetarOptions): Promise<MetarResponse> {
+  public async getAtis(options: GetAtisOptions): Promise<AtisResponse> {
     if (!this.isAuthenticated()) {
       throw new Error('Authentication required. Call login() or setSession() first.');
     }
 
-    const locations = Array.isArray(options.location)
-      ? options.location.join(',')
-      : options.location;
-
-    const queryParams = new URLSearchParams();
-    queryParams.set('location', locations);
-    if (options.dispcnt !== undefined) {
-      queryParams.set('dispcnt', options.dispcnt.toString());
-    }
-
-    if (!this.metarServiceCode) {
-      throw new Error('SWIM_METAR_SERVICE_CODE is required to call the METAR Web API.');
-    }
-
-    const url = `${this.dataBaseUrl}/${encodeURIComponent(this.metarServiceCode)}/web/FLV402001?${queryParams.toString()}`;
-
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-
-    const cookieHeader = this.getCookieHeader();
-    if (cookieHeader) {
-      headers['Cookie'] = cookieHeader;
-    }
+    const { locations, dispcnt } = validateAtisOptions(options);
+    const query = new URLSearchParams({
+      location: locations.join(','),
+      dispcnt: String(dispcnt),
+    });
+    const url = `${this.dataBaseUrl}/${encodeURIComponent(this.atisServiceCode)}/web/${ATIS_API_ID}?${query.toString()}`;
 
     const response = await this.fetchFn(url, {
       method: 'GET',
-      headers,
+      headers: {
+        Accept: 'application/json',
+        Cookie: this.getCookieHeader()!,
+      },
     });
 
-    if (response.status === 403) {
-      throw new Error('SWIM API returned 403 Forbidden. Session may have expired or is invalid.');
-    }
-
     if (!response.ok) {
-      throw new Error(`getMetar failed with status ${response.status}: ${response.statusText}`);
+      throw new Error(`ATIS request failed with HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ''}.`);
     }
 
-    const data = await response.json();
-    return data as MetarResponse;
+    const payload = await parseJsonResponse(response);
+    assertAtisResponse(payload);
+
+    const businessErrors = payload.error_info.filter(({ error_code }) => error_code !== '0' && error_code !== '1');
+    if (businessErrors.length > 0) {
+      throw new SwimApiError(formatBusinessError(businessErrors), payload, response.status);
+    }
+
+    return payload;
   }
+
+  /**
+   * Backward-compatible alias. The referenced official specification is an ATIS API,
+   * even though the package retains its historical METAR-oriented name.
+   */
+  public async getMetar(options: GetMetarOptions): Promise<MetarResponse> {
+    return this.getAtis(options);
+  }
+}
+
+function validateCredentials(credentials: SwimCredentials): void {
+  if (!credentials || typeof credentials.id !== 'string' || !credentials.id.trim()) {
+    throw new TypeError('credentials.id is required.');
+  }
+  if (typeof credentials.password !== 'string' || !credentials.password) {
+    throw new TypeError('credentials.password is required.');
+  }
+}
+
+function validateSession(session: SwimSession): void {
+  if (!session || typeof session.MSMSI !== 'string' || !session.MSMSI) {
+    throw new TypeError('session.MSMSI is required.');
+  }
+  if (typeof session.MSMAI !== 'string' || !session.MSMAI) {
+    throw new TypeError('session.MSMAI is required.');
+  }
+}
+
+function validateAtisOptions(options: GetAtisOptions): { locations: string[]; dispcnt: number } {
+  if (!options || options.location === undefined || options.location === null) {
+    throw new TypeError('location is required.');
+  }
+
+  const rawLocations = Array.isArray(options.location)
+    ? options.location
+    : options.location.split(',');
+  const locations = rawLocations.map((value) => value.trim().toUpperCase());
+
+  if (locations.length === 0 || locations.some((value) => !value)) {
+    throw new TypeError('location must contain at least one ICAO airport code.');
+  }
+
+  const invalidLocation = locations.find((value) => !LOCATION_PATTERN.test(value));
+  if (invalidLocation) {
+    throw new RangeError(`location must contain four-character ICAO airport codes: ${invalidLocation}`);
+  }
+
+  if (!Number.isInteger(options.dispcnt) || options.dispcnt < 1 || options.dispcnt > 50) {
+    throw new RangeError('dispcnt must be an integer from 1 through 50.');
+  }
+
+  return { locations, dispcnt: options.dispcnt };
+}
+
+async function extractSession(response: Response): Promise<SwimSession> {
+  const headers = response.headers as Headers & { getSetCookie?: () => string[] };
+  const setCookies = typeof headers.getSetCookie === 'function'
+    ? headers.getSetCookie()
+    : splitSetCookieHeader(headers.get('set-cookie'));
+
+  const values = new Map<string, string>();
+  for (const cookie of setCookies) {
+    const firstPart = cookie.split(';', 1)[0]?.trim();
+    const separator = firstPart?.indexOf('=') ?? -1;
+    if (!firstPart || separator < 1) continue;
+    values.set(firstPart.slice(0, separator).trim(), firstPart.slice(separator + 1).trim());
+  }
+
+  if (!values.has('MSMSI') || !values.has('MSMAI')) {
+    const contentType = response.headers.get('content-type') ?? '';
+    if (contentType.toLowerCase().includes('application/json')) {
+      const body = await response.json() as Record<string, unknown>;
+      if (typeof body.MSMSI === 'string') values.set('MSMSI', body.MSMSI);
+      if (typeof body.MSMAI === 'string') values.set('MSMAI', body.MSMAI);
+    }
+  }
+
+  const session = {
+    MSMSI: values.get('MSMSI') ?? '',
+    MSMAI: values.get('MSMAI') ?? '',
+  };
+  validateSession(session);
+  return session;
+}
+
+function splitSetCookieHeader(value: string | null): string[] {
+  if (!value) return [];
+  return value.split(/,(?=\s*[^;,=\s]+=[^;,]*)/g);
+}
+
+async function parseJsonResponse(response: Response): Promise<unknown> {
+  const contentType = response.headers.get('content-type') ?? '';
+  if (!contentType.toLowerCase().includes('application/json')) {
+    throw new Error(`ATIS response Content-Type must be application/json, received ${contentType || 'none'}.`);
+  }
+
+  try {
+    return await response.json();
+  } catch (error) {
+    throw new Error('ATIS response body is not valid JSON.', { cause: error });
+  }
+}
+
+function assertAtisResponse(value: unknown): asserts value is AtisResponse {
+  if (!isRecord(value) || !Array.isArray(value.error_info) || value.error_info.length === 0) {
+    throw new TypeError('ATIS response is missing error_info.');
+  }
+
+  for (const item of value.error_info) {
+    if (!isRecord(item) || typeof item.error_code !== 'string' || typeof item.error_description !== 'string') {
+      throw new TypeError('ATIS response contains malformed error_info.');
+    }
+  }
+
+  if ('data' in value && value.data !== undefined) {
+    if (!Array.isArray(value.data)) {
+      throw new TypeError('ATIS response data must be an array.');
+    }
+    for (const item of value.data) {
+      if (!isRecord(item) || typeof item.location !== 'string' || !Array.isArray(item.atisinfo)
+        || item.atisinfo.some((entry) => typeof entry !== 'string')) {
+        throw new TypeError('ATIS response contains malformed location data.');
+      }
+    }
+  }
+}
+
+function formatBusinessError(errors: AtisErrorInfo[]): string {
+  return `SWIM ATIS API returned business error(s): ${errors
+    .map(({ error_code, error_description }) => `${error_code}${error_description ? ` (${error_description})` : ''}`)
+    .join(', ')}`;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function normalizeServiceCode(value: string): string {
+  const normalized = value.trim().replace(/^\/+|\/+$/g, '');
+  if (!normalized || normalized.includes('/')) {
+    throw new TypeError('atisServiceCode must be a single non-empty URL path segment.');
+  }
+  return normalized;
+}
+
+function trimTrailingSlash(value: string): string {
+  return value.replace(/\/+$/, '');
 }
 
 function getEnvironmentVariable(name: string): string | undefined {
   const processLike = globalThis as typeof globalThis & {
-    process?: {
-      env?: Record<string, string | undefined>;
-    };
+    process?: { env?: Record<string, string | undefined> };
   };
-
   const value = processLike.process?.env?.[name];
-  return value && value.trim() ? value.trim() : undefined;
+  return value?.trim() || undefined;
 }
