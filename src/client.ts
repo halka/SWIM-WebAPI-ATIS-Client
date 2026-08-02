@@ -1,17 +1,16 @@
 import {
-  GetWeatherOptions,
+  AtisResponse,
+  GetAtisOptions,
   SwimClientOptions,
   SwimCredentials,
   SwimSession,
-  WeatherResponse,
 } from './types.js';
 
 const DEFAULT_AUTH_BASE_URL = 'https://top.swim.mlit.go.jp';
 const DEFAULT_DATA_BASE_URL = 'https://web.swim.mlit.go.jp';
 const LOGIN_PATH = '/swim/webapi/login';
-const WEATHER_PATH = '/f2atrq/web/FLV402001';
+const ATIS_PATH = '/f2atrq/web/FLV402001';
 const LOCATION_PATTERN = /^[A-Z0-9]{4}$/;
-const DEFAULT_DISPLAY_COUNT = 5;
 const MIN_DISPLAY_COUNT = 1;
 const MAX_DISPLAY_COUNT = 50;
 
@@ -68,17 +67,17 @@ export class SwimClient {
   }
 
   /**
-   * Returns the JSON value produced by the SWIM API without reshaping,
-   * renaming, filtering, or otherwise transforming it.
+   * Calls the SWIM ATIS Information Request API and returns the decoded JSON
+   * without renaming, filtering, validating, or reshaping response fields.
    */
-  public async getWeather<TResponse = WeatherResponse>(options: GetWeatherOptions): Promise<TResponse> {
+  public async getAtis<TResponse = AtisResponse>(options: GetAtisOptions): Promise<TResponse> {
     const cookie = this.getCookieHeader();
     if (!cookie) {
       throw new Error('Authentication required. Call login() or setSession() first.');
     }
 
-    const query = createWeatherQuery(options);
-    const response = await this.fetchFn(`${this.dataBaseUrl}${WEATHER_PATH}?${query}`, {
+    const query = createAtisQuery(options);
+    const response = await this.fetchFn(`${this.dataBaseUrl}${ATIS_PATH}?${query}`, {
       method: 'GET',
       headers: {
         Accept: 'application/json',
@@ -102,15 +101,15 @@ function validateCredentials(credentials: SwimCredentials): SwimCredentials {
   return { id, password: credentials.password };
 }
 
-function createWeatherQuery(options: GetWeatherOptions): string {
-  const { locations, dispcnt } = validateWeatherOptions(options);
+function createAtisQuery(options: GetAtisOptions): string {
+  const { locations, dispcnt } = validateAtisOptions(options);
   return new URLSearchParams({
     location: locations.join(','),
     dispcnt: String(dispcnt),
   }).toString();
 }
 
-function validateWeatherOptions(options: GetWeatherOptions): { locations: string[]; dispcnt: number } {
+function validateAtisOptions(options: GetAtisOptions): { locations: string[]; dispcnt: number } {
   if (!options || options.location === undefined || options.location === null) {
     throw new TypeError('location is required.');
   }
@@ -127,38 +126,44 @@ function validateWeatherOptions(options: GetWeatherOptions): { locations: string
     throw new RangeError(`location must contain four-character ICAO aerodrome codes: ${invalidLocation}`);
   }
 
-  const dispcnt = options.dispcnt ?? DEFAULT_DISPLAY_COUNT;
-  if (!Number.isInteger(dispcnt) || dispcnt < MIN_DISPLAY_COUNT || dispcnt > MAX_DISPLAY_COUNT) {
+  if (!Number.isInteger(options.dispcnt) || options.dispcnt < MIN_DISPLAY_COUNT || options.dispcnt > MAX_DISPLAY_COUNT) {
     throw new RangeError(`dispcnt must be an integer from ${MIN_DISPLAY_COUNT} through ${MAX_DISPLAY_COUNT}.`);
   }
 
-  return { locations, dispcnt };
+  return { locations, dispcnt: options.dispcnt };
 }
 
 async function extractSession(response: Response): Promise<SwimSession> {
-  const cookies = readSetCookieHeaders(response.headers);
-  const values = new Map<string, string>();
-
-  for (const cookie of cookies) {
-    const firstPart = cookie.split(';', 1)[0]?.trim();
-    const separator = firstPart?.indexOf('=') ?? -1;
-    if (!firstPart || separator < 1) continue;
-    values.set(firstPart.slice(0, separator).trim(), firstPart.slice(separator + 1).trim());
-  }
+  const values = parseSetCookieValues(readSetCookieHeaders(response.headers));
 
   if (!values.has('MSMSI') || !values.has('MSMAI')) {
-    const contentType = response.headers.get('content-type') ?? '';
-    if (contentType.toLowerCase().includes('application/json')) {
-      const body = await response.json() as Record<string, unknown>;
-      if (typeof body.MSMSI === 'string') values.set('MSMSI', body.MSMSI);
-      if (typeof body.MSMAI === 'string') values.set('MSMAI', body.MSMAI);
-    }
+    await mergeSessionValuesFromJson(response, values);
   }
 
   return validateAndCopySession({
     MSMSI: values.get('MSMSI') ?? '',
     MSMAI: values.get('MSMAI') ?? '',
   });
+}
+
+function parseSetCookieValues(cookies: string[]): Map<string, string> {
+  const values = new Map<string, string>();
+  for (const cookie of cookies) {
+    const firstPart = cookie.split(';', 1)[0]?.trim();
+    const separator = firstPart?.indexOf('=') ?? -1;
+    if (!firstPart || separator < 1) continue;
+    values.set(firstPart.slice(0, separator).trim(), firstPart.slice(separator + 1).trim());
+  }
+  return values;
+}
+
+async function mergeSessionValuesFromJson(response: Response, values: Map<string, string>): Promise<void> {
+  const contentType = response.headers.get('content-type') ?? '';
+  if (!contentType.toLowerCase().includes('application/json')) return;
+
+  const body = await response.json() as Record<string, unknown>;
+  if (typeof body.MSMSI === 'string') values.set('MSMSI', body.MSMSI);
+  if (typeof body.MSMAI === 'string') values.set('MSMAI', body.MSMAI);
 }
 
 function readSetCookieHeaders(headers: Headers): string[] {
