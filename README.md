@@ -1,205 +1,149 @@
-# SWIM-WebAPI-METAR
+# SWIM WebAPI ATIS Client
+
+TypeScript client for the **ATIS Information Request Service** operated by the Civil Aviation Bureau of Japan's Ministry of Land, Infrastructure, Transport and Tourism (MLIT) on SWIM.
+
+This implementation follows **SWIM Service API Integration Specification, Appendix 07 - ATIS Information Request Service, version 1.0.1 (2025-05-30)** for API `FLV402001`.
+
 > [!CAUTION]
-> You have an account authorised by SWIM to retrieve METAR data via the Web API.
-> 
-> For more details, visit https://top.swim.mlit.go.jp/swim
+> A SWIM account and any required service authorization are your responsibility. Do not expose credentials or session cookies in browser code, logs, or source control.
 
-A TypeScript client library for interacting with Japan's **SWIM (System Wide Information Management)** WebAPI METAR service, operated by the **Ministry of Land, Infrastructure, Transport and Tourism (MLIT)**.
+## Supported contract
 
-This module provides a typed interface to authenticate and fetch METAR (Meteorological Aerodrome Report) weather observation data in compliance with MLIT's requirements.
+- `GET https://web.swim.mlit.go.jp/f2atrq/web/FLV402001`
+- Required `location`: one ICAO airport code or comma-separated codes
+- Required `dispcnt`: integer from `1` through `50`
+- UTF-8 JSON response
+- Official response field: `atisinfo`
+- HTTP 200 business result codes: `0`, `1`, `2`, `3`, `4`, `5`, `6`, `99`
 
-国土交通省航空局の SWIM Web API から METAR データを取得するための TypeScript クライアントライブラリです。
-
-## Table of Contents
-
-- [Features](#features)
-- [Requirements](#requirements)
-- [SWIM's WebAPI METAR Restrictions](#swims-webapi-metar-restrictions)
-- [Verification & Development](#verification--development)
-- [Installation](#installation)
-- [Quick Start (Node.js)](#quick-start-nodejs)
-- [API Reference](#api-reference)
-- [Author](#author)
-
-## Features
-
-- **Authentication Flow:** Automatically manages POST authentication and session cookies (`MSMSI` and `MSMAI`).
-- **Session Lifecycle:** Exposes session serialization methods to support cookie reuse across multiple client instances or runs.
-- **TypeScript Support:** Full types for credentials, query options, client setup, and METAR responses.
-- **OpenAPI Definition:** Includes `openapi.yml` for the SWIM login and METAR endpoints used by this client.
-- **Zero Runtime Dependencies:** Built using modern standard APIs (`fetch` and `Headers`).
+The package name and `getMetar()` method are retained for compatibility with earlier releases. The official Appendix 07 service is ATIS, so new code should use `getAtis()`.
 
 ## Requirements
 
-- An active SWIM portal account authorised by MLIT to use the target Web API service.
-- Approval for Web API use may be required by the relevant information service provider before the masked API details are disclosed.
-- A server-side JavaScript runtime with `fetch` support, such as Node.js 18 or later.
-- The METAR Web API service code disclosed by SWIM after approval, provided as `SWIM_METAR_SERVICE_CODE` or `metarServiceCode`.
-
-## SWIM's WebAPI METAR Restrictions
-
-This package is only a client implementation. Access to SWIM data remains subject to MLIT/SWIM account approval, service approval, and the terms published in the SWIM portal.
-
-- SWIM is intended, for the time being, for aviation-related users such as operators, airport administrators, and government agencies; public/general use is not assumed by SWIM.
-- Web API services are request-based HTTP services and require the user to build the client-side system that calls the API.
-- Some Web API interface URLs are masked in the public SWIM portal documentation and are disclosed separately after the relevant information service provider approves use.
-- The masked METAR service code is not hard-coded. Set `SWIM_METAR_SERVICE_CODE` or pass `metarServiceCode` when constructing `SwimClient`.
-- This library is designed for Node.js, Edge Functions, or a proxy server. Browser clients cannot reliably set the required `Cookie` header for cross-origin SWIM requests.
-- Do not use this package, or SWIM METAR data retrieved with it, beyond the scope permitted by your SWIM account and service approval.
-
-- 対象の Web API サービスを利用できる SWIM アカウントと、必要な利用承認が必要です。
-- SWIM は当面、運航者、空港管理者、官公庁などの航空関係者による利用を想定しており、一般利用は想定されていません。
-- Web API 方式のサービスは HTTP によるリクエスト型のサービスであり、利用者側で API を呼び出すシステムを構築する必要があります。
-- SWIM portal で公開されている API 連携仕様書では、Web API の URL の一部がマスクされている場合があります。該当情報は、情報サービス提供者による利用承認後に通知されます。
-- マスクされた METAR サービスコードはコード内に固定していません。`SWIM_METAR_SERVICE_CODE` を設定するか、`SwimClient` の `metarServiceCode` に指定してください。
-- ブラウザではクロスオリジンリクエスト時に `Cookie` ヘッダーを自由に設定できないため、このライブラリは Node.js、Edge Functions、またはプロキシサーバー上での利用を想定しています。
-- 取得した METAR データは、SWIM アカウントおよびサービス利用承認の範囲内で利用してください。
-
-### References:
-
-- [SWIM portal](https://top.swim.mlit.go.jp/swim)
-- [SWIM FAQ](https://top.swim.mlit.go.jp/swim/help)
-- [SWIM service list](https://top.swim.mlit.go.jp/swim/servicelist)
-
-## Verification & Development
-
-### Run Unit Tests
-A suite of tests is implemented using Node's native test runner (via `tsx` to support ESM TypeScript):
-```bash
-npm test
-```
-
-### Run Executable Demo
-You can run the demo script directly. Passing credentials in environment variables will execute against MLIT's live environment:
-```bash
-# To test against the live service:
-export SWIM_ID="your-email@example.com"
-export SWIM_PASSWORD="your-password"
-export SWIM_METAR_SERVICE_CODE="webapi-metar-service-code"
-npm run demo
-```
-
-You can pass airport codes and the number of records to the demo:
-
-```bash
-npm run demo -- -a RJTT -a RJCC -c 5
-npm run demo -- --airport RJTT,RJCC --count 5
-npm run demo -- --airport=RJTT,RJCC --count=5
-npm run demo -- -a RJTT count 5
-```
-
-- `-a`, `--airport`: ICAO airport code. Can be repeated or comma-separated.
-- `-c`, `--count`, `count`: Number of records to retrieve per airport.
+- Node.js 18 or newer, or another server-side runtime with Fetch API support
+- A valid SWIM account and required authorization
 
 ## Installation
 
-Within the project folder, install dev dependencies and compile:
-
 ```bash
-# Install dependencies
 npm install
-
-# Build the module
 npm run build
+npm test
 ```
 
-## Quick Start (Node.js)
+## Usage
 
 ```typescript
-import { SwimClient } from 'swim-webapi-metar';
+import { SwimApiError, SwimClient } from 'swim-webapi-metar';
 
-// Initialize the client
 const client = new SwimClient();
 
+await client.login({
+  id: process.env.SWIM_ID!,
+  password: process.env.SWIM_PASSWORD!,
+});
+
 try {
-  // 1. Authenticate with SWIM credentials
-  await client.login({
-    id: 'your-email@example.com',
-    password: 'your-password'
-  });
-
-  console.log('Successfully authenticated!');
-
-  // 2. Retrieve METAR data for Haneda (RJTT) and New Chitose (RJCC)
-  const metarData = await client.getMetar({
+  const response = await client.getAtis({
     location: ['RJTT', 'RJCC'],
-    dispcnt: 5 // number of records to return per airport
+    dispcnt: 3,
   });
 
-  console.log('METAR Data:', metarData);
+  for (const airport of response.data ?? []) {
+    console.log(airport.location, airport.atisinfo);
+  }
 } catch (error) {
-  console.error('Error fetching METAR data:', error);
+  if (error instanceof SwimApiError) {
+    console.error(error.errorInfo);
+  } else {
+    throw error;
+  }
 }
 ```
 
-### Reusing a Session
-
-You can extract session cookies after authentication and load them into a new client instance later to avoid logging in on every request:
+## Session reuse
 
 ```typescript
-// Get current session
-const session = client.getSession(); // returns { MSMSI, MSMAI }
+const session = client.getSession();
+const restored = new SwimClient({ session });
 
-// Later, restore the session in a new instance
-const restoredClient = new SwimClient({ session });
+restored.clearSession();
 ```
 
-## API Reference
+The client requires both SWIM cookies, `MSMSI` and `MSMAI`.
 
-### `class SwimClient`
+## API
 
-#### `constructor(options?: SwimClientOptions)`
-Creates an instance of the SWIM client.
-- `options.authBaseUrl`: Custom base URL for authentication. Defaults to `https://top.swim.mlit.go.jp`.
-- `options.dataBaseUrl`: Custom base URL for data services. Defaults to `https://web.swim.mlit.go.jp`.
-- `options.metarServiceCode`: METAR Web API service code disclosed by SWIM after approval. Defaults to `process.env.SWIM_METAR_SERVICE_CODE` when available.
-- `options.session`: Initial session cookies (`SwimSession`).
-- `options.fetch`: Custom `fetch` implementation.
+### `new SwimClient(options?)`
 
-#### `login(credentials: SwimCredentials): Promise<SwimSession>`
-Authenticates via the `/swim/webapi/login` endpoint, saving session cookies in the instance.
-- `credentials.id`: Your registered email address.
-- `credentials.password`: Your SWIM account password.
+Relevant options:
 
-#### `getMetar(options: GetMetarOptions): Promise<MetarResponse>`
-Retrieves weather report data for the specified airports.
-- `options.location`: Comma-separated string or an array of airport ICAO codes (e.g. `['RJTT', 'RJCC']`).
-- `options.dispcnt`: Number of METAR records to retrieve per location.
+- `authBaseUrl`: authentication host; default `https://top.swim.mlit.go.jp`
+- `dataBaseUrl`: service host; default `https://web.swim.mlit.go.jp`
+- `atisServiceCode`: path segment before `/web/FLV402001`; default `f2atrq`
+- `metarServiceCode`: deprecated alias for `atisServiceCode`
+- `session`: previously obtained `MSMSI` and `MSMAI` values
+- `fetch`: custom Fetch implementation, useful for tests and proxies
 
-Returns:
+Environment fallback variables are `SWIM_ATIS_SERVICE_CODE`, then the deprecated `SWIM_METAR_SERVICE_CODE`.
+
+### `login(credentials)`
+
+Authenticates and stores the `MSMSI` and `MSMAI` session cookies.
+
+### `getAtis({ location, dispcnt })`
+
+Calls `FLV402001`. Client-side validation prevents malformed locations and `dispcnt` values outside `1..50`.
+
+Codes `0` and `1` are returned normally. Codes `2`, `3`, `4`, `5`, `6`, and `99` throw `SwimApiError`, because the official service reports these business errors using HTTP 200.
+
+### `getMetar(options)`
+
+Deprecated compatibility alias for `getAtis(options)`.
+
+### Session methods
+
+- `isAuthenticated()`
+- `getSession()`
+- `setSession(session)`
+- `clearSession()`
+- `getCookieHeader()`
+
+## Response types
 
 ```typescript
-interface MetarResponse {
-  error_info: {
-    error_code: string;
-    error_description: string;
-  }[];
-  data: {
-    location: string;
-    atisInfo: string[];
-  }[];
+interface AtisLocationData {
+  location: string;
+  atisinfo: string[];
+}
+
+interface AtisErrorInfo {
+  error_code: string;
+  error_description: string;
 }
 ```
 
-### OpenAPI
+The exact wire name is `atisinfo`, not `atisInfo`.
 
-The OpenAPI definition is available at `openapi.yml`.
+## OpenAPI
 
-It defines:
+`openapi.yml` documents the Appendix 07 v1.0.1 request, response, and business error contract. Authentication is included for client usability but is outside the scope of Appendix 07 itself.
 
-- `POST /swim/webapi/login`
-- `GET /{metarServiceCode}/web/FLV402001`
-- `MSMSI` and `MSMAI` cookie authentication
-- The typed `MetarResponse` payload shape
+## Live demo
 
-#### `isAuthenticated(): boolean`
-Returns `true` if the client currently holds session cookies.
+```bash
+export SWIM_ID="your-email@example.com"
+export SWIM_PASSWORD="your-password"
+npm run demo -- --airport RJTT,RJCC --count 3
+```
 
-#### `getSession(): SwimSession | undefined`
-Returns the active session cookies.
+## Security notes
 
-#### `setSession(session: SwimSession): void`
-Manually sets or replaces the active session cookies.
+- Use this library on a trusted server, Edge runtime, or controlled proxy.
+- Never commit SWIM credentials or session cookies.
+- Avoid printing cookie values in production logs.
+- Treat live-service tests separately from unit tests.
 
 ## Author
+
 halka
