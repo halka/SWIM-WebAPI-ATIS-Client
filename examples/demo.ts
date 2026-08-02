@@ -5,12 +5,9 @@ interface DemoOptions {
   dispcnt: number;
 }
 
-const DEFAULT_LOCATIONS = ['RJTT', 'RJCC'];
-const DEFAULT_DISPLAY_COUNT = 3;
-
 function parseOptions(args: string[]): DemoOptions {
   const locations: string[] = [];
-  let dispcnt = DEFAULT_DISPLAY_COUNT;
+  let dispcnt: number | undefined;
 
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index]?.trim();
@@ -48,10 +45,14 @@ function parseOptions(args: string[]): DemoOptions {
     throw new Error(`Unknown argument: ${argument}`);
   }
 
-  return {
-    locations: locations.length > 0 ? locations : DEFAULT_LOCATIONS,
-    dispcnt,
-  };
+  if (locations.length === 0) {
+    throw new Error('At least one ICAO aerodrome code is required.');
+  }
+  if (dispcnt === undefined) {
+    throw new Error('A display count is required. Use --count with an integer from 1 through 50.');
+  }
+
+  return { locations, dispcnt };
 }
 
 function parseLocations(value: string): string[] {
@@ -76,11 +77,11 @@ function parseCount(value: string): number {
 }
 
 function printUsage(): void {
-  console.log(`Usage: npm run demo -- [options]
+  console.log(`Usage: npm run demo -- --airport CODE --count NUMBER
 
 Options:
   -a, --airport CODE   ICAO aerodrome code; repeat or comma-separate values
-  -c, --count NUMBER   Number of records per aerodrome (1-50, default: 3)
+  -c, --count NUMBER   Number of ATIS records per aerodrome (required, 1-50)
   -h, --help           Show this help
 
 Examples:
@@ -99,12 +100,11 @@ async function run(): Promise<void> {
   const client = new SwimClient();
   await client.login({ id, password });
 
-  const response = await client.getWeather({
+  const response = await client.getAtis({
     location: options.locations,
     dispcnt: options.dispcnt,
   });
 
-  // The response is printed exactly as returned by response.json().
   console.log(JSON.stringify(response, null, 2));
 }
 
