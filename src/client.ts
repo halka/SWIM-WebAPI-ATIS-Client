@@ -1,22 +1,22 @@
 import {
   SwimCredentials,
   SwimSession,
-  GetMetarOptions,
+  GetWeatherOptions,
   SwimClientOptions,
-  MetarResponse,
+  WeatherResponse,
 } from './types.js';
 
 export class SwimClient {
   private authBaseUrl: string;
   private dataBaseUrl: string;
-  private metarServiceCode?: string;
+  private weatherServiceCode?: string;
   private session?: SwimSession;
   private fetchFn: typeof fetch;
 
   constructor(options: SwimClientOptions = {}) {
     this.authBaseUrl = options.authBaseUrl?.replace(/\/$/, '') ?? 'https://top.swim.mlit.go.jp';
     this.dataBaseUrl = options.dataBaseUrl?.replace(/\/$/, '') ?? 'https://web.swim.mlit.go.jp';
-    this.metarServiceCode = options.metarServiceCode ?? getEnvironmentVariable('SWIM_METAR_SERVICE_CODE');
+    this.weatherServiceCode = options.weatherServiceCode ?? getEnvironmentVariable('SWIM_WEATHER_SERVICE_CODE');
     this.session = options.session;
     this.fetchFn = options.fetch ?? fetch;
   }
@@ -59,7 +59,7 @@ export class SwimClient {
    */
   public async login(credentials: SwimCredentials): Promise<SwimSession> {
     const url = `${this.authBaseUrl}/swim/webapi/login`;
-    
+
     const response = await this.fetchFn(url, {
       method: 'POST',
       headers: {
@@ -72,16 +72,12 @@ export class SwimClient {
       throw new Error(`Login failed with status ${response.status}: ${response.statusText}`);
     }
 
-    // Parse Set-Cookie headers
     let setCookies: string[] = [];
     if (typeof response.headers.getSetCookie === 'function') {
       setCookies = response.headers.getSetCookie();
     } else {
       const rawCookie = response.headers.get('set-cookie');
       if (rawCookie) {
-        // Fallback parser for environments where getSetCookie is not available
-        // Note: set-cookie values are comma separated but cookie expires dates also contain commas.
-        // We use a regex lookup that splits by comma only when followed by a non-space name=value pattern.
         setCookies = rawCookie.split(/,(?=[^;]*=)/);
       }
     }
@@ -104,8 +100,6 @@ export class SwimClient {
     }
 
     if (!msmsi || !msmai) {
-      // If we didn't get cookies, check if they are returned in the response body or if they exist in the instance already.
-      // Sometimes APIs might return them in JSON in certain mock/testing configurations.
       try {
         const body = await response.json() as any;
         if (body && typeof body === 'object') {
@@ -127,9 +121,9 @@ export class SwimClient {
   }
 
   /**
-   * Retrieve METAR weather observation data for specified airport locations.
+   * Retrieve weather observation data for specified airport locations.
    */
-  public async getMetar(options: GetMetarOptions): Promise<MetarResponse> {
+  public async getWeather(options: GetWeatherOptions): Promise<WeatherResponse> {
     if (!this.isAuthenticated()) {
       throw new Error('Authentication required. Call login() or setSession() first.');
     }
@@ -144,11 +138,11 @@ export class SwimClient {
       queryParams.set('dispcnt', options.dispcnt.toString());
     }
 
-    if (!this.metarServiceCode) {
-      throw new Error('SWIM_METAR_SERVICE_CODE is required to call the METAR Web API.');
+    if (!this.weatherServiceCode) {
+      throw new Error('SWIM_WEATHER_SERVICE_CODE is required to call the weather Web API.');
     }
 
-    const url = `${this.dataBaseUrl}/${encodeURIComponent(this.metarServiceCode)}/web/FLV402001?${queryParams.toString()}`;
+    const url = `${this.dataBaseUrl}/${encodeURIComponent(this.weatherServiceCode)}/web/FLV402001?${queryParams.toString()}`;
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -156,7 +150,7 @@ export class SwimClient {
 
     const cookieHeader = this.getCookieHeader();
     if (cookieHeader) {
-      headers['Cookie'] = cookieHeader;
+      headers.Cookie = cookieHeader;
     }
 
     const response = await this.fetchFn(url, {
@@ -169,11 +163,11 @@ export class SwimClient {
     }
 
     if (!response.ok) {
-      throw new Error(`getMetar failed with status ${response.status}: ${response.statusText}`);
+      throw new Error(`getWeather failed with status ${response.status}: ${response.statusText}`);
     }
 
     const data = await response.json();
-    return data as MetarResponse;
+    return data as WeatherResponse;
   }
 }
 
