@@ -8,7 +8,7 @@ export interface SwimSession {
   MSMAI: string;
 }
 
-export interface GetMetarOptions {
+export interface GetWeatherOptions {
   /**
    * List of ICAO airport codes (e.g. ['RJCC', 'RJTT'] or 'RJCC,RJTT').
    * Individual codes will be comma-separated and URL-encoded.
@@ -16,7 +16,7 @@ export interface GetMetarOptions {
   location: string | string[];
 
   /**
-   * Number of METAR records to return per location.
+   * Number of weather records to return per location.
    * Defaults to 5.
    */
   dispcnt?: number;
@@ -36,10 +36,10 @@ export interface SwimClientOptions {
   dataBaseUrl?: string;
 
   /**
-   * METAR Web API service code disclosed by SWIM after approval.
-   * If omitted, reads SWIM_METAR_SERVICE_CODE from the environment.
+   * Weather Web API service code disclosed by SWIM after approval.
+   * If omitted, reads SWIM_WEATHER_SERVICE_CODE from the environment.
    */
-  metarServiceCode?: string;
+  weatherServiceCode?: string;
 
   /**
    * Initial session cookies if already authenticated.
@@ -52,20 +52,20 @@ export interface SwimClientOptions {
   fetch?: typeof fetch;
 }
 
-export interface MetarErrorInfo {
+export interface WeatherErrorInfo {
   error_code: string;
   error_description: string;
 }
 
-export interface MetarLocationData {
+export interface WeatherLocationData {
   location: string;
   atisInfo: string[];
 }
 
 /**
- * SWIM METAR response containing error metadata and ATIS/METAR text grouped by airport.
+ * SWIM weather response containing error metadata and ATIS/METAR text grouped by airport.
  */
-export interface MetarResponse {
-  error_info: MetarErrorInfo[];
-  data: MetarLocationData[];
+export interface WeatherResponse {
+  error_info: WeatherErrorInfo[];
+  data: WeatherLocationData[];
 }
