@@ -16,7 +16,18 @@ This implementation follows **SWIM Service API Integration Specification, Append
 - Official response field: `atisinfo`
 - HTTP 200 business result codes: `0`, `1`, `2`, `3`, `4`, `5`, `6`, `99`
 
-The package name and `getMetar()` method are retained for compatibility with earlier releases. The official Appendix 07 service is ATIS, so new code should use `getAtis()`.
+## Breaking API
+
+This release exposes the Appendix 07 ATIS contract only. Historical METAR-oriented methods, types, constructor options, and environment-variable aliases have been removed.
+
+Use:
+
+- `getAtis()`
+- `GetAtisOptions`
+- `AtisResponse`
+- `AtisLocationData`
+- `atisServiceCode`
+- `SWIM_ATIS_SERVICE_CODE`
 
 ## Requirements
 
@@ -81,11 +92,10 @@ Relevant options:
 - `authBaseUrl`: authentication host; default `https://top.swim.mlit.go.jp`
 - `dataBaseUrl`: service host; default `https://web.swim.mlit.go.jp`
 - `atisServiceCode`: path segment before `/web/FLV402001`; default `f2atrq`
-- `metarServiceCode`: deprecated alias for `atisServiceCode`
 - `session`: previously obtained `MSMSI` and `MSMAI` values
 - `fetch`: custom Fetch implementation, useful for tests and proxies
 
-Environment fallback variables are `SWIM_ATIS_SERVICE_CODE`, then the deprecated `SWIM_METAR_SERVICE_CODE`.
+The only service-code environment variable is `SWIM_ATIS_SERVICE_CODE`.
 
 ### `login(credentials)`
 
@@ -96,10 +106,6 @@ Authenticates and stores the `MSMSI` and `MSMAI` session cookies.
 Calls `FLV402001`. Client-side validation prevents malformed locations and `dispcnt` values outside `1..50`.
 
 Codes `0` and `1` are returned normally. Codes `2`, `3`, `4`, `5`, `6`, and `99` throw `SwimApiError`, because the official service reports these business errors using HTTP 200.
-
-### `getMetar(options)`
-
-Deprecated compatibility alias for `getAtis(options)`.
 
 ### Session methods
 
@@ -134,8 +140,11 @@ The exact wire name is `atisinfo`, not `atisInfo`.
 ```bash
 export SWIM_ID="your-email@example.com"
 export SWIM_PASSWORD="your-password"
+export SWIM_ATIS_SERVICE_CODE="f2atrq"
 npm run demo -- --airport RJTT,RJCC --count 3
 ```
+
+`SWIM_ATIS_SERVICE_CODE` is optional when the official `f2atrq` path is used.
 
 ## Security notes
 
