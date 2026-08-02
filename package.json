@@ -1,7 +1,7 @@
 {
   "name": "swim-webapi-atis",
   "version": "2.0.0",
-  "description": "TypeScript client for Japan MLIT SWIM ATIS Information Request Service",
+  "description": "TypeScript client for Japan MLIT SWIM ATIS weather information with raw JSON responses",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -28,6 +28,7 @@
   "keywords": [
     "swim",
     "atis",
+    "weather",
     "mlit",
     "aviation",
     "air-traffic-services",
