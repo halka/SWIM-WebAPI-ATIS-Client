@@ -6,24 +6,30 @@ import {
   WeatherResponse,
 } from './types.js';
 
-const ATIS_PATH = '/f2atrq/web/FLV402001';
+const DEFAULT_AUTH_BASE_URL = 'https://top.swim.mlit.go.jp';
+const DEFAULT_DATA_BASE_URL = 'https://web.swim.mlit.go.jp';
+const LOGIN_PATH = '/swim/webapi/login';
+const WEATHER_PATH = '/f2atrq/web/FLV402001';
 const LOCATION_PATTERN = /^[A-Z0-9]{4}$/;
+const DEFAULT_DISPLAY_COUNT = 5;
+const MIN_DISPLAY_COUNT = 1;
+const MAX_DISPLAY_COUNT = 50;
 
 export class SwimClient {
   private readonly authBaseUrl: string;
   private readonly dataBaseUrl: string;
-  private session?: SwimSession;
   private readonly fetchFn: typeof fetch;
+  private session?: SwimSession;
 
   constructor(options: SwimClientOptions = {}) {
-    this.authBaseUrl = trimTrailingSlash(options.authBaseUrl ?? 'https://top.swim.mlit.go.jp');
-    this.dataBaseUrl = trimTrailingSlash(options.dataBaseUrl ?? 'https://web.swim.mlit.go.jp');
-    this.session = options.session ? copyValidatedSession(options.session) : undefined;
+    this.authBaseUrl = normalizeBaseUrl(options.authBaseUrl ?? DEFAULT_AUTH_BASE_URL);
+    this.dataBaseUrl = normalizeBaseUrl(options.dataBaseUrl ?? DEFAULT_DATA_BASE_URL);
     this.fetchFn = options.fetch ?? fetch;
+    this.session = options.session ? validateAndCopySession(options.session) : undefined;
   }
 
   public setSession(session: SwimSession): void {
-    this.session = copyValidatedSession(session);
+    this.session = validateAndCopySession(session);
   }
 
   public clearSession(): void {
@@ -35,29 +41,26 @@ export class SwimClient {
   }
 
   public isAuthenticated(): boolean {
-    return Boolean(this.session?.MSMSI && this.session?.MSMAI);
+    return this.session !== undefined;
   }
 
   public getCookieHeader(): string | undefined {
-    if (!this.isAuthenticated()) return undefined;
-    return `MSMSI=${this.session!.MSMSI}; MSMAI=${this.session!.MSMAI}`;
+    const session = this.session;
+    return session ? `MSMSI=${session.MSMSI}; MSMAI=${session.MSMAI}` : undefined;
   }
 
   public async login(credentials: SwimCredentials): Promise<SwimSession> {
-    validateCredentials(credentials);
-
-    const response = await this.fetchFn(`${this.authBaseUrl}/swim/webapi/login`, {
+    const validatedCredentials = validateCredentials(credentials);
+    const response = await this.fetchFn(`${this.authBaseUrl}${LOGIN_PATH}`, {
       method: 'POST',
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json; charset=UTF-8',
       },
-      body: JSON.stringify(credentials),
+      body: JSON.stringify(validatedCredentials),
     });
 
-    if (!response.ok) {
-      throw new Error(`Login failed with status ${response.status}: ${response.statusText}`);
-    }
+    assertSuccessfulResponse(response, 'Login');
 
     const session = await extractSession(response);
     this.session = session;
@@ -68,42 +71,43 @@ export class SwimClient {
    * Returns the JSON value produced by the SWIM API without reshaping,
    * renaming, filtering, or otherwise transforming it.
    */
-  public async getWeather(options: GetWeatherOptions): Promise<WeatherResponse> {
-    if (!this.isAuthenticated()) {
+  public async getWeather<TResponse = WeatherResponse>(options: GetWeatherOptions): Promise<TResponse> {
+    const cookie = this.getCookieHeader();
+    if (!cookie) {
       throw new Error('Authentication required. Call login() or setSession() first.');
     }
 
-    const { locations, dispcnt } = validateWeatherOptions(options);
-    const query = new URLSearchParams({
-      location: locations.join(','),
-      dispcnt: String(dispcnt),
-    });
-
-    const response = await this.fetchFn(`${this.dataBaseUrl}${ATIS_PATH}?${query.toString()}`, {
+    const query = createWeatherQuery(options);
+    const response = await this.fetchFn(`${this.dataBaseUrl}${WEATHER_PATH}?${query}`, {
       method: 'GET',
       headers: {
         Accept: 'application/json',
-        Cookie: this.getCookieHeader()!,
+        Cookie: cookie,
       },
     });
 
-    if (!response.ok) {
-      throw new Error(
-        `ATIS request failed with HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ''}.`,
-      );
-    }
-
-    return response.json();
+    assertSuccessfulResponse(response, 'ATIS request');
+    return await response.json() as TResponse;
   }
 }
 
-function validateCredentials(credentials: SwimCredentials): void {
-  if (!credentials || typeof credentials.id !== 'string' || !credentials.id.trim()) {
+function validateCredentials(credentials: SwimCredentials): SwimCredentials {
+  const id = credentials?.id?.trim();
+  if (!id) {
     throw new TypeError('credentials.id is required.');
   }
   if (typeof credentials.password !== 'string' || !credentials.password) {
     throw new TypeError('credentials.password is required.');
   }
+  return { id, password: credentials.password };
+}
+
+function createWeatherQuery(options: GetWeatherOptions): string {
+  const { locations, dispcnt } = validateWeatherOptions(options);
+  return new URLSearchParams({
+    location: locations.join(','),
+    dispcnt: String(dispcnt),
+  }).toString();
 }
 
 function validateWeatherOptions(options: GetWeatherOptions): { locations: string[]; dispcnt: number } {
@@ -123,22 +127,19 @@ function validateWeatherOptions(options: GetWeatherOptions): { locations: string
     throw new RangeError(`location must contain four-character ICAO aerodrome codes: ${invalidLocation}`);
   }
 
-  const dispcnt = options.dispcnt ?? 5;
-  if (!Number.isInteger(dispcnt) || dispcnt < 1 || dispcnt > 50) {
-    throw new RangeError('dispcnt must be an integer from 1 through 50.');
+  const dispcnt = options.dispcnt ?? DEFAULT_DISPLAY_COUNT;
+  if (!Number.isInteger(dispcnt) || dispcnt < MIN_DISPLAY_COUNT || dispcnt > MAX_DISPLAY_COUNT) {
+    throw new RangeError(`dispcnt must be an integer from ${MIN_DISPLAY_COUNT} through ${MAX_DISPLAY_COUNT}.`);
   }
 
   return { locations, dispcnt };
 }
 
 async function extractSession(response: Response): Promise<SwimSession> {
-  const headers = response.headers as Headers & { getSetCookie?: () => string[] };
-  const setCookies = typeof headers.getSetCookie === 'function'
-    ? headers.getSetCookie()
-    : splitSetCookieHeader(headers.get('set-cookie'));
-
+  const cookies = readSetCookieHeaders(response.headers);
   const values = new Map<string, string>();
-  for (const cookie of setCookies) {
+
+  for (const cookie of cookies) {
     const firstPart = cookie.split(';', 1)[0]?.trim();
     const separator = firstPart?.indexOf('=') ?? -1;
     if (!firstPart || separator < 1) continue;
@@ -154,20 +155,22 @@ async function extractSession(response: Response): Promise<SwimSession> {
     }
   }
 
-  const MSMSI = values.get('MSMSI');
-  const MSMAI = values.get('MSMAI');
-  if (!MSMSI || !MSMAI) {
-    throw new Error('Login response did not return expected MSMSI and MSMAI session cookies.');
-  }
-
-  return { MSMSI, MSMAI };
+  return validateAndCopySession({
+    MSMSI: values.get('MSMSI') ?? '',
+    MSMAI: values.get('MSMAI') ?? '',
+  });
 }
 
-function splitSetCookieHeader(value: string | null): string[] {
+function readSetCookieHeaders(headers: Headers): string[] {
+  const extendedHeaders = headers as Headers & { getSetCookie?: () => string[] };
+  if (typeof extendedHeaders.getSetCookie === 'function') {
+    return extendedHeaders.getSetCookie();
+  }
+  const value = headers.get('set-cookie');
   return value ? value.split(/,(?=[^;]*=)/) : [];
 }
 
-function copyValidatedSession(session: SwimSession): SwimSession {
+function validateAndCopySession(session: SwimSession): SwimSession {
   if (!session || typeof session.MSMSI !== 'string' || !session.MSMSI) {
     throw new TypeError('session.MSMSI is required.');
   }
@@ -177,6 +180,17 @@ function copyValidatedSession(session: SwimSession): SwimSession {
   return { MSMSI: session.MSMSI, MSMAI: session.MSMAI };
 }
 
-function trimTrailingSlash(value: string): string {
-  return value.replace(/\/+$/, '');
+function assertSuccessfulResponse(response: Response, operation: string): void {
+  if (!response.ok) {
+    const suffix = response.statusText ? ` ${response.statusText}` : '';
+    throw new Error(`${operation} failed with HTTP ${response.status}${suffix}.`);
+  }
+}
+
+function normalizeBaseUrl(value: string): string {
+  const normalized = value.trim().replace(/\/+$/, '');
+  if (!normalized) {
+    throw new TypeError('Base URL must not be empty.');
+  }
+  return normalized;
 }
