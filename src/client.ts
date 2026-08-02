@@ -7,8 +7,7 @@ import {
   SwimSession,
 } from './types.js';
 
-const OFFICIAL_ATIS_SERVICE_CODE = 'f2atrq';
-const ATIS_API_ID = 'FLV402001';
+const ATIS_PATH = '/f2atrq/web/FLV402001';
 const LOCATION_PATTERN = /^[A-Z0-9]{4}$/;
 
 export class SwimApiError extends Error {
@@ -28,19 +27,13 @@ export class SwimApiError extends Error {
 export class SwimClient {
   private readonly authBaseUrl: string;
   private readonly dataBaseUrl: string;
-  private readonly atisServiceCode: string;
   private session?: SwimSession;
   private readonly fetchFn: typeof fetch;
 
   constructor(options: SwimClientOptions = {}) {
     this.authBaseUrl = trimTrailingSlash(options.authBaseUrl ?? 'https://top.swim.mlit.go.jp');
     this.dataBaseUrl = trimTrailingSlash(options.dataBaseUrl ?? 'https://web.swim.mlit.go.jp');
-    this.atisServiceCode = normalizeServiceCode(
-      options.atisServiceCode
-        ?? getEnvironmentVariable('SWIM_ATIS_SERVICE_CODE')
-        ?? OFFICIAL_ATIS_SERVICE_CODE,
-    );
-    this.session = options.session;
+    this.session = options.session ? copyValidatedSession(options.session) : undefined;
     this.fetchFn = options.fetch ?? globalThis.fetch;
 
     if (typeof this.fetchFn !== 'function') {
@@ -49,8 +42,7 @@ export class SwimClient {
   }
 
   public setSession(session: SwimSession): void {
-    validateSession(session);
-    this.session = { ...session };
+    this.session = copyValidatedSession(session);
   }
 
   public clearSession(): void {
@@ -92,8 +84,11 @@ export class SwimClient {
   }
 
   /**
-   * Calls the official ATIS information request API (FLV402001).
-   * Business errors are returned with HTTP 200 by SWIM and are raised as SwimApiError.
+   * Requests complete ATIS messages from SWIM API FLV402001.
+   *
+   * ATIS is terminal operational information for arriving/departing aircraft.
+   * Its text may include meteorological observations, but this method does not
+   * return standalone METAR reports or a parsed METAR data model.
    */
   public async getAtis(options: GetAtisOptions): Promise<AtisResponse> {
     if (!this.isAuthenticated()) {
@@ -105,7 +100,7 @@ export class SwimClient {
       location: locations.join(','),
       dispcnt: String(dispcnt),
     });
-    const url = `${this.dataBaseUrl}/${encodeURIComponent(this.atisServiceCode)}/web/${ATIS_API_ID}?${query.toString()}`;
+    const url = `${this.dataBaseUrl}${ATIS_PATH}?${query.toString()}`;
 
     const response = await this.fetchFn(url, {
       method: 'GET',
@@ -140,13 +135,14 @@ function validateCredentials(credentials: SwimCredentials): void {
   }
 }
 
-function validateSession(session: SwimSession): void {
+function copyValidatedSession(session: SwimSession): SwimSession {
   if (!session || typeof session.MSMSI !== 'string' || !session.MSMSI) {
     throw new TypeError('session.MSMSI is required.');
   }
   if (typeof session.MSMAI !== 'string' || !session.MSMAI) {
     throw new TypeError('session.MSMAI is required.');
   }
+  return { ...session };
 }
 
 function validateAtisOptions(options: GetAtisOptions): { locations: string[]; dispcnt: number } {
@@ -154,18 +150,16 @@ function validateAtisOptions(options: GetAtisOptions): { locations: string[]; di
     throw new TypeError('location is required.');
   }
 
-  const rawLocations = Array.isArray(options.location)
-    ? options.location
-    : options.location.split(',');
+  const rawLocations = Array.isArray(options.location) ? options.location : options.location.split(',');
   const locations = rawLocations.map((value) => value.trim().toUpperCase());
 
   if (locations.length === 0 || locations.some((value) => !value)) {
-    throw new TypeError('location must contain at least one ICAO airport code.');
+    throw new TypeError('location must contain at least one ICAO aerodrome code.');
   }
 
   const invalidLocation = locations.find((value) => !LOCATION_PATTERN.test(value));
   if (invalidLocation) {
-    throw new RangeError(`location must contain four-character ICAO airport codes: ${invalidLocation}`);
+    throw new RangeError(`location must contain four-character ICAO aerodrome codes: ${invalidLocation}`);
   }
 
   if (!Number.isInteger(options.dispcnt) || options.dispcnt < 1 || options.dispcnt > 50) {
@@ -198,12 +192,10 @@ async function extractSession(response: Response): Promise<SwimSession> {
     }
   }
 
-  const session = {
+  return copyValidatedSession({
     MSMSI: values.get('MSMSI') ?? '',
     MSMAI: values.get('MSMAI') ?? '',
-  };
-  validateSession(session);
-  return session;
+  });
 }
 
 function splitSetCookieHeader(value: string | null): string[] {
@@ -258,22 +250,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
-function normalizeServiceCode(value: string): string {
-  const normalized = value.trim().replace(/^\/+|\/+$/g, '');
-  if (!normalized || normalized.includes('/')) {
-    throw new TypeError('atisServiceCode must be a single non-empty URL path segment.');
-  }
-  return normalized;
-}
-
 function trimTrailingSlash(value: string): string {
   return value.replace(/\/+$/, '');
-}
-
-function getEnvironmentVariable(name: string): string | undefined {
-  const processLike = globalThis as typeof globalThis & {
-    process?: { env?: Record<string, string | undefined> };
-  };
-  const value = processLike.process?.env?.[name];
-  return value?.trim() || undefined;
 }
