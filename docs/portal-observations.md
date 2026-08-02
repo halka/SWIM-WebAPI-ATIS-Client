@@ -6,31 +6,31 @@ This document records behavior observed in the authenticated SWIM browser interf
 
 The captured portal screen showed 23 selectable ICAO aerodrome location indicators. The airport-name and link columns below are reference information added to make the codes easier to identify; the API request value remains the four-character ICAO indicator.
 
-| ICAO | IATA | Airport | Region | Official website | Flightradar24 |
-|---|---|---|---|---|---|
-| `RJCC` | `CTS` | New Chitose Airport | Hokkaido | [Official](https://www.hokkaido-airports.com/en/new-chitose/) | [FR24](https://www.flightradar24.com/data/airports/cts) |
-| `RJCH` | `HKD` | Hakodate Airport | Hokkaido | [Official](https://www.hokkaido-airports.com/en/hakodate/) | [FR24](https://www.flightradar24.com/data/airports/hkd) |
-| `RJSS` | `SDJ` | Sendai Airport | Tohoku | [Official](https://www.sendai-airport.co.jp/global/) | [FR24](https://www.flightradar24.com/data/airports/sdj) |
-| `RJAA` | `NRT` | Narita International Airport | Kanto | [Official](https://www.narita-airport.jp/en/) | [FR24](https://www.flightradar24.com/data/airports/nrt) |
-| `RJTT` | `HND` | Tokyo International Airport (Haneda) | Kanto | [Official](https://tokyo-haneda.com/en/) | [FR24](https://www.flightradar24.com/data/airports/hnd) |
-| `RJSN` | `KIJ` | Niigata Airport | Chubu | [Official](https://www.niigata-airport.gr.jp/?lang=en) | [FR24](https://www.flightradar24.com/data/airports/kij) |
-| `RJGG` | `NGO` | Chubu Centrair International Airport | Chubu | [Official](https://www.centrair.jp/en/) | [FR24](https://www.flightradar24.com/data/airports/ngo) |
-| `RJOO` | `ITM` | Osaka International Airport (Itami) | Kinki | [Official](https://www.osaka-airport.co.jp/en/) | [FR24](https://www.flightradar24.com/data/airports/itm) |
-| `RJBB` | `KIX` | Kansai International Airport | Kinki | [Official](https://www.kansai-airport.or.jp/en/) | [FR24](https://www.flightradar24.com/data/airports/kix) |
-| `RJBE` | `UKB` | Kobe Airport | Kinki | [Official](https://www.kairport.co.jp/en/) | [FR24](https://www.flightradar24.com/data/airports/ukb) |
-| `RJOA` | `HIJ` | Hiroshima Airport | Chugoku | [Official](https://www.hij.airport.jp/en/) | [FR24](https://www.flightradar24.com/data/airports/hij) |
-| `RJOT` | `TAK` | Takamatsu Airport | Shikoku | [Official](https://www.takamatsu-airport.com/) | [FR24](https://www.flightradar24.com/data/airports/tak) |
-| `RJOM` | `MYJ` | Matsuyama Airport | Shikoku | [Official](https://www.matsuyama-airport.co.jp/) | [FR24](https://www.flightradar24.com/data/airports/myj) |
-| `RJOK` | `KCZ` | Kochi Airport (Kochi Ryoma Airport) | Shikoku | [Official](https://www.kochiap.co.jp/) | [FR24](https://www.flightradar24.com/data/airports/kcz) |
-| `RJFF` | `FUK` | Fukuoka Airport | Kyushu | [Official](https://www.fukuoka-airport.jp/en/) | [FR24](https://www.flightradar24.com/data/airports/fuk) |
-| `RJFS` | `HSG` | Saga Airport (Kyushu Saga International Airport) | Kyushu | [Official](https://saga-ab.jp/) | [FR24](https://www.flightradar24.com/data/airports/hsg) |
-| `RJFU` | `NGS` | Nagasaki Airport | Kyushu | [Official](https://www.nagasaki-airport.jp/en/) | [FR24](https://www.flightradar24.com/data/airports/ngs) |
-| `RJFT` | `KMJ` | Kumamoto Airport (Aso Kumamoto Airport) | Kyushu | [Official](https://www.kumamoto-airport.co.jp/) | [FR24](https://www.flightradar24.com/data/airports/kmj) |
-| `RJFO` | `OIT` | Oita Airport | Kyushu | [Official](https://www.oita-airport.jp/) | [FR24](https://www.flightradar24.com/data/airports/oit) |
-| `RJFM` | `KMI` | Miyazaki Airport | Kyushu | [Official](https://www.miyazaki-airport.co.jp/) | [FR24](https://www.flightradar24.com/data/airports/kmi) |
-| `RJFK` | `KOJ` | Kagoshima Airport | Kyushu | [Official](https://www.koj-ab.co.jp/en/) | [FR24](https://www.flightradar24.com/data/airports/koj) |
-| `ROAH` | `OKA` | Naha Airport | Okinawa | [Official](https://www.naha-airport.co.jp/en/) | [FR24](https://www.flightradar24.com/data/airports/oka) |
-| `ROIG` | `ISG` | New Ishigaki Airport | Okinawa | [Official](https://www.ishigaki-airport.co.jp/) | [FR24](https://www.flightradar24.com/data/airports/isg) |
+| ICAO | Airport |Official website | Flightradar24 |
+|---|---|---|---|
+| `RJCC` | New Chitose | [Official](https://www.hokkaido-airports.com/en/new-chitose/) | [FR24](https://www.flightradar24.com/data/airports/cts) |
+| `RJCH` | Hakodate | [Official](https://www.hokkaido-airports.com/en/hakodate/) | [FR24](https://www.flightradar24.com/data/airports/hkd) |
+| `RJSS` | Sendai | [Official](https://www.sendai-airport.co.jp/global/) | [FR24](https://www.flightradar24.com/data/airports/sdj) |
+| `RJAA` | Narita (Tokyo Wide Area) | [Official](https://www.narita-airport.jp/en/) | [FR24](https://www.flightradar24.com/data/airports/nrt) |
+| `RJTT` | Haneda (Tokyo Metropolitan) | [Official](https://tokyo-haneda.com/en/) | [FR24](https://www.flightradar24.com/data/airports/hnd) |
+| `RJSN` | Niigata | [Official](https://www.niigata-airport.gr.jp/?lang=en) | [FR24](https://www.flightradar24.com/data/airports/kij) |
+| `RJGG` | Chubu Centrair (Nagoya)| [Official](https://www.centrair.jp/en/) | [FR24](https://www.flightradar24.com/data/airports/ngo) |
+| `RJOO` | Itami (Osaka) | [Official](https://www.osaka-airport.co.jp/en/) | [FR24](https://www.flightradar24.com/data/airports/itm) |
+| `RJBB` | Kansai (Osaka) | [Official](https://www.kansai-airport.or.jp/en/) | [FR24](https://www.flightradar24.com/data/airports/kix) |
+| `RJBE` | Kobe | [Official](https://www.kairport.co.jp/en/) | [FR24](https://www.flightradar24.com/data/airports/ukb) |
+| `RJOA` | Hiroshima | [Official](https://www.hij.airport.jp/en/) | [FR24](https://www.flightradar24.com/data/airports/hij) |
+| `RJOT` | Takamatsu | [Official](https://www.takamatsu-airport.com/) | [FR24](https://www.flightradar24.com/data/airports/tak) |
+| `RJOM` | Matsuyama | [Official](https://www.matsuyama-airport.co.jp/) | [FR24](https://www.flightradar24.com/data/airports/myj) |
+| `RJOK` | Kochi (Kochi Ryoma) | [Official](https://www.kochiap.co.jp/) | [FR24](https://www.flightradar24.com/data/airports/kcz) |
+| `RJFF` | Fukuoka | [Official](https://www.fukuoka-airport.jp/en/) | [FR24](https://www.flightradar24.com/data/airports/fuk) |
+| `RJFS` | Saga | [Official](https://saga-ab.jp/) | [FR24](https://www.flightradar24.com/data/airports/hsg) |
+| `RJFU` | Nagasaki | [Official](https://www.nagasaki-airport.jp/en/) | [FR24](https://www.flightradar24.com/data/airports/ngs) |
+| `RJFT` | Kumamoto | [Official](https://www.kumamoto-airport.co.jp/) | [FR24](https://www.flightradar24.com/data/airports/kmj) |
+| `RJFO` | Oita Airport | [Official](https://www.oita-airport.jp/) | [FR24](https://www.flightradar24.com/data/airports/oit) |
+| `RJFM` | Miyazaki | [Official](https://www.miyazaki-airport.co.jp/) | [FR24](https://www.flightradar24.com/data/airports/kmi) |
+| `RJFK` | Kagoshima | [Official](https://www.koj-ab.co.jp/en/) | [FR24](https://www.flightradar24.com/data/airports/koj) |
+| `ROAH` | Naha | [Official](https://www.naha-airport.co.jp/en/) | [FR24](https://www.flightradar24.com/data/airports/oka) |
+| `ROIG` | Ishigaki | [Official](https://www.ishigaki-airport.co.jp/) | [FR24](https://www.flightradar24.com/data/airports/isg) |
 
 ### Interpretation and maintenance
 
