@@ -9,44 +9,40 @@ export interface SwimSession {
 }
 
 export interface GetAtisOptions {
-  /**
-   * ICAO airport code or codes. Multiple locations are sent as a comma-separated value.
-   */
+  /** ICAO aerodrome location indicator(s), for example RJTT or ['RJTT', 'RJCC']. */
   location: string | string[];
 
-  /**
-   * Number of ATIS entries returned per airport. The official API requires 1 through 50.
-   */
+  /** Number of ATIS messages returned per aerodrome. Required range: 1 through 50. */
   dispcnt: number;
 }
 
 export interface SwimClientOptions {
-  /** Defaults to https://top.swim.mlit.go.jp. */
+  /** Authentication origin. Defaults to https://top.swim.mlit.go.jp. */
   authBaseUrl?: string;
 
-  /** Defaults to https://web.swim.mlit.go.jp. */
+  /** ATIS service origin. Defaults to https://web.swim.mlit.go.jp. */
   dataBaseUrl?: string;
 
-  /**
-   * Path segment preceding /web/FLV402001. For the public v1.0.1 specification,
-   * this is f2atrq. A different value can be supplied for approved environments.
-   */
-  atisServiceCode?: string;
-
-  /** Initial session cookies if already authenticated. */
+  /** Initial SWIM session cookies. */
   session?: SwimSession;
 
-  /** Optional custom fetch implementation for testing or proxying. */
+  /** Custom Fetch API implementation, primarily for tests and controlled proxies. */
   fetch?: typeof fetch;
 }
 
-export type AtisErrorCode = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '99';
+export type AtisResultCode = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '99';
 
 export interface AtisErrorInfo {
-  error_code: AtisErrorCode | string;
+  error_code: AtisResultCode | string;
   error_description: string;
 }
 
+/**
+ * One aerodrome's ATIS messages.
+ *
+ * Each `atisinfo` entry is a complete ATIS message. It may contain an embedded
+ * aerodrome meteorological observation, but it is not a standalone METAR object.
+ */
 export interface AtisLocationData {
   location: string;
   atisinfo: string[];
@@ -63,8 +59,3 @@ export interface AtisErrorResponse {
 }
 
 export type AtisResponse = AtisSuccessResponse | AtisErrorResponse;
-
-export interface SwimApiErrorOptions {
-  response: AtisResponse;
-  status: number;
-}
