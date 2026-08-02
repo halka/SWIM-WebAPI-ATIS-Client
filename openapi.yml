@@ -11,6 +11,12 @@ info:
     information service and may include meteorological observations. It is not
     a standalone METAR retrieval API and this contract does not model METAR fields.
 
+    The authenticated SWIM browser portal has been observed presenting multiple
+    successive ATIS messages for a selected aerodrome. That observation supports
+    the interpretation of `dispcnt` and `atisinfo`, but the portal's current list
+    of selectable aerodromes is not part of this API contract and is not modeled
+    as a fixed enumeration.
+
     Authentication is included because it is required by this client library,
     but Appendix 07 itself specifies FLV402001 only.
 servers:
@@ -48,8 +54,10 @@ paths:
       description: |
         Returns ATIS messages matching the requested ICAO aerodrome location
         indicators. Each `atisinfo` string is a complete ATIS message and may
-        include operational, runway, approach, and meteorological information.
-        The service represents success and business errors with HTTP 200.
+        include operational, runway, approach, frequency, and meteorological
+        information. Multiple strings may represent successive ATIS information
+        identifiers or issue times for the same aerodrome. The service represents
+        success and business errors with HTTP 200.
       operationId: getAtis
       security:
         - MSMSI: []
@@ -58,19 +66,22 @@ paths:
         - name: location
           in: query
           required: true
-          description: One ICAO aerodrome location indicator, or multiple indicators separated by commas.
+          description: |
+            One ICAO aerodrome location indicator, or multiple indicators separated
+            by commas. The client validates syntax only; SWIM determines whether a
+            location is currently supported.
           schema:
             type: string
             minLength: 1
           examples:
             single:
-              value: RJTT
+              value: RJCH
             multiple:
               value: RJCC,RJCH
         - name: dispcnt
           in: query
           required: true
-          description: Number of ATIS messages returned for each aerodrome.
+          description: Number of ATIS messages requested for each aerodrome.
           schema:
             type: integer
             minimum: 1
@@ -87,14 +98,34 @@ paths:
                   - $ref: '#/components/schemas/AtisErrorResponse'
               examples:
                 success:
+                  summary: Multiple successive complete ATIS messages
                   value:
                     error_info:
                       - error_code: '0'
                         error_description: ''
                     data:
-                      - location: RJTT
+                      - location: RJCH
                         atisinfo:
-                          - "ATIS RJTT R\nM0230\n(APCH)ILS Z RWY34L/ILS Z RWY34R\n..."
+                          - |-
+                            ATIS RJCH H
+                            M0500
+                            (APCH)ILS Z RWY12
+                            USING RWY 12
+                            SHIRAKAMI APP FREQ 120.85
+                            M
+                            020500Z 14014KT 40KM FEW020CU SCT030CU
+                            23/17 Q1011/A2988=
+                            Q/TWO NINE EIGHT EIGHT
+                          - |-
+                            ATIS RJCH G
+                            M0400
+                            (APCH)ILS Z RWY12
+                            USING RWY 12
+                            SHIRAKAMI APP FREQ 120.85
+                            M
+                            020400Z 14014KT 40KM FEW012ST SCT020CU BKN030CU
+                            23/17 Q1011/A2987=
+                            Q/TWO NINE EIGHT SEVEN
                 noData:
                   value:
                     error_info:
@@ -158,7 +189,10 @@ components:
           type: array
           items:
             type: string
-          description: Complete ATIS messages. These are not standalone parsed METAR objects.
+          description: |
+            Ordered complete ATIS message strings returned for the aerodrome.
+            These are not standalone parsed METAR objects. A browser-page
+            "last updated" timestamp is not part of this API response schema.
     AtisSuccessResponse:
       type: object
       required: [error_info, data]
