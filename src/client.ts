@@ -2,8 +2,6 @@ import {
   AtisErrorInfo,
   AtisResponse,
   GetAtisOptions,
-  GetMetarOptions,
-  MetarResponse,
   SwimClientOptions,
   SwimCredentials,
   SwimSession,
@@ -39,9 +37,7 @@ export class SwimClient {
     this.dataBaseUrl = trimTrailingSlash(options.dataBaseUrl ?? 'https://web.swim.mlit.go.jp');
     this.atisServiceCode = normalizeServiceCode(
       options.atisServiceCode
-        ?? options.metarServiceCode
         ?? getEnvironmentVariable('SWIM_ATIS_SERVICE_CODE')
-        ?? getEnvironmentVariable('SWIM_METAR_SERVICE_CODE')
         ?? OFFICIAL_ATIS_SERVICE_CODE,
     );
     this.session = options.session;
@@ -132,14 +128,6 @@ export class SwimClient {
     }
 
     return payload;
-  }
-
-  /**
-   * Backward-compatible alias. The referenced official specification is an ATIS API,
-   * even though the package retains its historical METAR-oriented name.
-   */
-  public async getMetar(options: GetMetarOptions): Promise<MetarResponse> {
-    return this.getAtis(options);
   }
 }
 
