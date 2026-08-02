@@ -8,12 +8,12 @@ export interface SwimSession {
   MSMAI: string;
 }
 
-export interface GetWeatherOptions {
+export interface GetAtisOptions {
   /** One ICAO aerodrome code, a comma-separated string, or an array of codes. */
   location: string | string[];
 
-  /** Number of records to request per aerodrome. Defaults to 5. */
-  dispcnt?: number;
+  /** Number of ATIS records requested per aerodrome. Must be an integer from 1 through 50. */
+  dispcnt: number;
 }
 
 export interface SwimClientOptions {
@@ -31,4 +31,4 @@ export interface SwimClientOptions {
 }
 
 /** The unmodified JSON value returned by the SWIM API. */
-export type WeatherResponse = unknown;
+export type AtisResponse = unknown;
