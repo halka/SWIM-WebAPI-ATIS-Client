@@ -1,28 +1,35 @@
 openapi: 3.0.3
 info:
-  title: SWIM WebAPI METAR
-  version: 1.0.0
+  title: SWIM ATIS Information Request API
+  version: 1.0.1
   description: |
-    OpenAPI definition for the MLIT SWIM WebAPI METAR endpoints used by this client.
-    Access requires an approved SWIM account and the disclosed METAR service code.
+    Client-facing OpenAPI definition based on MLIT Civil Aviation Bureau
+    "SWIM Service API Integration Specification, Appendix 07 - ATIS Information
+    Request Service", version 1.0.1, issued 2025-05-30.
+
+    This API returns complete ATIS messages. ATIS is a terminal operational
+    information service and may include meteorological observations. It is not
+    a standalone METAR retrieval API and this contract does not model METAR fields.
+
+    The authenticated SWIM browser portal has been observed presenting multiple
+    successive ATIS messages for a selected aerodrome. That observation supports
+    the interpretation of `dispcnt` and `atisinfo`, but the portal's current list
+    of selectable aerodromes is not part of this API contract and is not modeled
+    as a fixed enumeration.
+
+    Authentication is included because it is required by this client library,
+    but Appendix 07 itself specifies FLV402001 only.
 servers:
-  - url: https://top.swim.mlit.go.jp
-    description: SWIM authentication service
   - url: https://web.swim.mlit.go.jp
-    description: SWIM data service
+    description: SWIM service provider system
 tags:
   - name: Authentication
-  - name: METAR
+  - name: ATIS
 paths:
   /swim/webapi/login:
     post:
-      tags:
-        - Authentication
+      tags: [Authentication]
       summary: Authenticate with SWIM
-      description: |
-        Authenticates a SWIM user and returns the MSMSI and MSMAI session cookies
-        in the Set-Cookie response headers.
-      operationId: login
       servers:
         - url: https://top.swim.mlit.go.jp
       requestBody:
@@ -31,87 +38,107 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/SwimCredentials'
-            examples:
-              credentials:
-                value:
-                  id: your-email@example.com
-                  password: your-password
       responses:
         '200':
-          description: Authentication succeeded.
+          description: Authentication response. The client expects MSMSI and MSMAI cookies.
           headers:
             Set-Cookie:
-              description: Session cookies containing MSMSI and MSMAI.
               schema:
                 type: string
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/LoginResponse'
-        '400':
-          description: Invalid request.
-        '401':
+        default:
           description: Authentication failed.
-        '500':
-          description: SWIM server error.
-  /{metarServiceCode}/web/FLV402001:
+  /f2atrq/web/FLV402001:
     get:
-      tags:
-        - METAR
-      summary: Retrieve METAR observations
+      tags: [ATIS]
+      summary: Request complete ATIS messages
       description: |
-        Retrieves METAR weather observation data for one or more ICAO airport codes.
-        The service code is disclosed by SWIM after approval and is intentionally
-        modeled as a path parameter.
-      operationId: getMetar
-      servers:
-        - url: https://web.swim.mlit.go.jp
+        Returns ATIS messages matching the requested ICAO aerodrome location
+        indicators. Each `atisinfo` string is a complete ATIS message and may
+        include operational, runway, approach, frequency, and meteorological
+        information. Multiple strings may represent successive ATIS information
+        identifiers or issue times for the same aerodrome. The service represents
+        success and business errors with HTTP 200.
+      operationId: getAtis
       security:
         - MSMSI: []
           MSMAI: []
       parameters:
-        - name: metarServiceCode
-          in: path
-          required: true
-          description: METAR Web API service code disclosed by SWIM after approval.
-          schema:
-            type: string
-          example: webapi-metar-service-code
         - name: location
           in: query
           required: true
-          description: Comma-separated ICAO airport codes.
+          description: |
+            One ICAO aerodrome location indicator, or multiple indicators separated
+            by commas. The client validates syntax only; SWIM determines whether a
+            location is currently supported.
           schema:
             type: string
+            minLength: 1
           examples:
             single:
-              value: RJTT
+              value: RJCH
             multiple:
-              value: RJTT,RJCC
+              value: RJCC,RJCH
         - name: dispcnt
           in: query
-          required: false
-          description: Number of METAR records to return per airport.
+          required: true
+          description: Number of ATIS messages requested for each aerodrome.
           schema:
             type: integer
             minimum: 1
-            default: 5
-          example: 5
+            maximum: 50
+          example: 3
       responses:
         '200':
-          description: METAR response returned by SWIM.
+          description: Normal result, no-data result, or documented business error.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MetarResponse'
-        '400':
-          description: Invalid request.
-        '401':
-          description: Authentication required or session is invalid.
-        '403':
-          description: Session may have expired, is invalid, or the account is not authorized for the service.
-        '500':
-          description: SWIM server error.
+                oneOf:
+                  - $ref: '#/components/schemas/AtisSuccessResponse'
+                  - $ref: '#/components/schemas/AtisErrorResponse'
+              examples:
+                success:
+                  summary: Multiple successive complete ATIS messages
+                  value:
+                    error_info:
+                      - error_code: '0'
+                        error_description: ''
+                    data:
+                      - location: RJCH
+                        atisinfo:
+                          - |-
+                            ATIS RJCH H
+                            M0500
+                            (APCH)ILS Z RWY12
+                            USING RWY 12
+                            SHIRAKAMI APP FREQ 120.85
+                            M
+                            020500Z 14014KT 40KM FEW020CU SCT030CU
+                            23/17 Q1011/A2988=
+                            Q/TWO NINE EIGHT EIGHT
+                          - |-
+                            ATIS RJCH G
+                            M0400
+                            (APCH)ILS Z RWY12
+                            USING RWY 12
+                            SHIRAKAMI APP FREQ 120.85
+                            M
+                            020400Z 14014KT 40KM FEW012ST SCT020CU BKN030CU
+                            23/17 Q1011/A2987=
+                            Q/TWO NINE EIGHT SEVEN
+                noData:
+                  value:
+                    error_info:
+                      - error_code: '1'
+                        error_description: ''
+                    data: []
+                invalidLocation:
+                  value:
+                    error_info:
+                      - error_code: '4'
+                        error_description: RJ88
+        default:
+          description: Undocumented HTTP-level failure.
 components:
   securitySchemes:
     MSMSI:
@@ -125,76 +152,68 @@ components:
   schemas:
     SwimCredentials:
       type: object
-      required:
-        - id
-        - password
+      required: [id, password]
+      additionalProperties: false
       properties:
         id:
           type: string
-          description: SWIM account ID, typically the registered email address.
-          example: your-email@example.com
+          minLength: 1
         password:
           type: string
           format: password
-          description: SWIM account password.
-          example: your-password
-    LoginResponse:
+          minLength: 1
+    AtisErrorInfo:
       type: object
-      description: |
-        SWIM normally returns the session values as Set-Cookie headers. Some mock
-        environments may also return these values in the JSON response body.
-      additionalProperties: true
-      properties:
-        MSMSI:
-          type: string
-          description: Optional MSMSI session value.
-        MSMAI:
-          type: string
-          description: Optional MSMAI session value.
-    MetarResponse:
-      type: object
-      description: SWIM METAR response containing error metadata and ATIS/METAR text grouped by airport.
-      required:
-        - error_info
-        - data
-      properties:
-        error_info:
-          type: array
-          items:
-            $ref: '#/components/schemas/MetarErrorInfo'
-        data:
-          type: array
-          items:
-            $ref: '#/components/schemas/MetarLocationData'
-    MetarErrorInfo:
-      type: object
-      required:
-        - error_code
-        - error_description
+      required: [error_code, error_description]
+      additionalProperties: false
       properties:
         error_code:
           type: string
-          example: '0'
+          enum: ['0', '1', '2', '3', '4', '5', '6', '99']
+          description: |
+            0 normal; 1 no matching data; 2 location missing; 3 dispcnt missing;
+            4 nonexistent location; 5 too many locations; 6 dispcnt outside 1-50;
+            99 unexpected/system error.
         error_description:
           type: string
-          example: ''
-    MetarLocationData:
+          description: Offending value for codes 4 and 6; otherwise normally empty.
+    AtisLocationData:
       type: object
-      required:
-        - location
-        - atisInfo
+      required: [location, atisinfo]
+      additionalProperties: false
       properties:
         location:
           type: string
-          description: ICAO airport code.
-          example: RJTT
-        atisInfo:
+          description: ICAO aerodrome location indicator.
+        atisinfo:
           type: array
-          description: ATIS/METAR text entries returned for the airport.
           items:
             type: string
-          example:
-            - |-
-              ATIS RJTT B
-              M0400
-              210400Z 19014KT 20KM FEW020CU SCT/// 33/25 Q1007/A2976=
+          description: |
+            Ordered complete ATIS message strings returned for the aerodrome.
+            These are not standalone parsed METAR objects. A browser-page
+            "last updated" timestamp is not part of this API response schema.
+    AtisSuccessResponse:
+      type: object
+      required: [error_info, data]
+      additionalProperties: false
+      properties:
+        error_info:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/AtisErrorInfo'
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AtisLocationData'
+    AtisErrorResponse:
+      type: object
+      required: [error_info]
+      additionalProperties: false
+      properties:
+        error_info:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/AtisErrorInfo'

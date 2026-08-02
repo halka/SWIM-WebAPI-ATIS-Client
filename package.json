@@ -1,7 +1,7 @@
 {
-  "name": "swim-webapi-metar",
-  "version": "1.0.0",
-  "description": "TypeScript client library for Japan MLIT SWIM WebAPI METAR service",
+  "name": "swim-webapi-atis",
+  "version": "2.0.0",
+  "description": "TypeScript client for Japan MLIT SWIM ATIS Information Request Service",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -11,17 +11,26 @@
       "types": "./dist/index.d.ts"
     }
   },
+  "files": [
+    "dist",
+    "README.md",
+    "openapi.yml"
+  ],
   "scripts": {
     "build": "tsc",
     "test": "node --import tsx --test src/**/*.test.ts",
-    "demo": "tsx examples/demo.ts"
+    "demo": "tsx examples/demo.ts",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "engines": {
+    "node": ">=18"
   },
   "keywords": [
     "swim",
-    "metar",
+    "atis",
     "mlit",
     "aviation",
-    "weather",
+    "air-traffic-services",
     "japan"
   ],
   "author": "halka",

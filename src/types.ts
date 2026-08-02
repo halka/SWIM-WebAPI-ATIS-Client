@@ -8,64 +8,54 @@ export interface SwimSession {
   MSMAI: string;
 }
 
-export interface GetMetarOptions {
-  /**
-   * List of ICAO airport codes (e.g. ['RJCC', 'RJTT'] or 'RJCC,RJTT').
-   * Individual codes will be comma-separated and URL-encoded.
-   */
+export interface GetAtisOptions {
+  /** ICAO aerodrome location indicator(s), for example RJTT or ['RJTT', 'RJCC']. */
   location: string | string[];
 
-  /**
-   * Number of METAR records to return per location.
-   * Defaults to 5.
-   */
-  dispcnt?: number;
+  /** Number of ATIS messages returned per aerodrome. Required range: 1 through 50. */
+  dispcnt: number;
 }
 
 export interface SwimClientOptions {
-  /**
-   * Base URL for the authentication service.
-   * Defaults to 'https://top.swim.mlit.go.jp'
-   */
+  /** Authentication origin. Defaults to https://top.swim.mlit.go.jp. */
   authBaseUrl?: string;
 
-  /**
-   * Base URL for the flight/weather data service.
-   * Defaults to 'https://web.swim.mlit.go.jp'
-   */
+  /** ATIS service origin. Defaults to https://web.swim.mlit.go.jp. */
   dataBaseUrl?: string;
 
-  /**
-   * METAR Web API service code disclosed by SWIM after approval.
-   * If omitted, reads SWIM_METAR_SERVICE_CODE from the environment.
-   */
-  metarServiceCode?: string;
-
-  /**
-   * Initial session cookies if already authenticated.
-   */
+  /** Initial SWIM session cookies. */
   session?: SwimSession;
 
-  /**
-   * Optional custom fetch function (e.g. for mocking or proxying).
-   */
+  /** Custom Fetch API implementation, primarily for tests and controlled proxies. */
   fetch?: typeof fetch;
 }
 
-export interface MetarErrorInfo {
-  error_code: string;
+export type AtisResultCode = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '99';
+
+export interface AtisErrorInfo {
+  error_code: AtisResultCode | string;
   error_description: string;
 }
 
-export interface MetarLocationData {
+/**
+ * One aerodrome's ATIS messages.
+ *
+ * Each `atisinfo` entry is a complete ATIS message. It may contain an embedded
+ * aerodrome meteorological observation, but it is not a standalone METAR object.
+ */
+export interface AtisLocationData {
   location: string;
-  atisInfo: string[];
+  atisinfo: string[];
 }
 
-/**
- * SWIM METAR response containing error metadata and ATIS/METAR text grouped by airport.
- */
-export interface MetarResponse {
-  error_info: MetarErrorInfo[];
-  data: MetarLocationData[];
+export interface AtisSuccessResponse {
+  error_info: AtisErrorInfo[];
+  data: AtisLocationData[];
 }
+
+export interface AtisErrorResponse {
+  error_info: AtisErrorInfo[];
+  data?: never;
+}
+
+export type AtisResponse = AtisSuccessResponse | AtisErrorResponse;
