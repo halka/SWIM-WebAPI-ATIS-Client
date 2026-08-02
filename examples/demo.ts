@@ -1,4 +1,4 @@
-import { SwimApiError, SwimClient } from '../src/index.js';
+import { SwimClient } from '../src/index.js';
 
 interface DemoOptions {
   locations: string[];
@@ -66,15 +66,11 @@ async function run(): Promise<void> {
   const client = new SwimClient();
   await client.login({ id, password });
 
-  const result = await client.getAtis({ location: locations, dispcnt });
+  const result = await client.getWeather({ location: locations, dispcnt });
   console.log(JSON.stringify(result, null, 2));
 }
 
 run().catch((error: unknown) => {
-  if (error instanceof SwimApiError) {
-    console.error('SWIM business error:', error.errorInfo);
-  } else {
-    console.error(error instanceof Error ? error.message : error);
-  }
+  console.error(error instanceof Error ? error.message : error);
   process.exitCode = 1;
 });
