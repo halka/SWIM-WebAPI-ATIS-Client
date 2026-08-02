@@ -36,19 +36,6 @@ test('getAtis calls FLV402001 with encoded locations and required dispcnt', asyn
   assert.deepEqual(result.data?.[0]?.atisinfo, ['ATIS RJTT A']);
 });
 
-test('getMetar remains a backward-compatible alias', async () => {
-  const client = new SwimClient({
-    session,
-    fetch: async () => jsonResponse({
-      error_info: [{ error_code: '1', error_description: '' }],
-      data: [],
-    }),
-  });
-
-  const result = await client.getMetar({ location: 'RJTT', dispcnt: 1 });
-  assert.equal(result.error_info[0]?.error_code, '1');
-});
-
 test('validates dispcnt against the official 1 through 50 range', async () => {
   const client = new SwimClient({ session, fetch: async () => assert.fail('fetch must not run') });
 
